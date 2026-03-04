@@ -1,0 +1,85 @@
+---
+title: Positive Number Decoders
+description: Decoders for validating positive and non-negative numbers
+---
+
+## positiveNumber
+
+Accepts only non-negative (zero or positive) finite numbers.
+
+```typescript
+const positiveNumber: Decoder<number>
+```
+
+### Validation Rules
+
+- Must be a finite number (rejects `NaN` and `Infinity`)
+- Must be greater than or equal to 0
+- Rejects `-0` (negative zero)
+- Accepts both integers and floats
+
+### Examples
+
+```typescript
+import { positiveNumber } from 'decoders';
+
+const result1 = positiveNumber.decode(42);      // ✓ Ok(42)
+const result2 = positiveNumber.decode(3.14);    // ✓ Ok(3.14)
+const result3 = positiveNumber.decode(0);       // ✓ Ok(0)
+const result4 = positiveNumber.decode(-1);      // ✗ Error: "Number must be positive"
+const result5 = positiveNumber.decode(-0);      // ✗ Error: "Number must be positive"
+const result6 = positiveNumber.decode(NaN);     // ✗ Error: "Number must be finite"
+```
+
+### Use Cases
+
+- Prices and monetary amounts
+- Distances and measurements
+- Percentages (when non-negative)
+- Ratings and scores
+- Duration values
+
+---
+
+## positiveInteger
+
+Accepts only non-negative (zero or positive) finite whole numbers.
+
+```typescript
+const positiveInteger: Decoder<number>
+```
+
+### Validation Rules
+
+- Must be a finite number
+- Must be a whole number (no decimal places)
+- Must be greater than or equal to 0
+- Rejects `-0` (negative zero)
+
+### Examples
+
+```typescript
+import { positiveInteger } from 'decoders';
+
+const result1 = positiveInteger.decode(42);   // ✓ Ok(42)
+const result2 = positiveInteger.decode(0);    // ✓ Ok(0)
+const result3 = positiveInteger.decode(-1);   // ✗ Error: "Number must be positive"
+const result4 = positiveInteger.decode(3.5);  // ✗ Error: "Number must be an integer"
+```
+
+### Use Cases
+
+- Array lengths and indices
+- Counts and quantities
+- Pagination parameters
+- Non-negative ID values
+
+---
+
+## Related Decoders
+
+### See Also
+
+- [integer](/api/numbers/integer) - For integers that can be negative
+- [number](#) - For any finite number (negative or positive)
+- [ranges](/api/numbers/ranges) - For constraining numbers to specific ranges

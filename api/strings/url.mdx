@@ -1,0 +1,177 @@
+---
+title: url
+description: Validates URL strings and returns URL instances
+---
+
+# url
+
+Accepts strings that are valid URLs and returns the value as a `URL` instance.
+
+## Type Signature
+
+```typescript
+const url: Decoder<URL>
+```
+
+## Validation Pattern
+
+Validates URLs using a comprehensive regex pattern that captures:
+1. **Scheme** (e.g., http, https, ftp) - 2-12 characters, optional `+` extension
+2. **Credentials** (optional) - username:password@
+3. **Host** - alphanumeric domain or IP
+4. **Port** (optional) - 2-5 digit port number
+5. **Path** (optional) - path, query params, and hash fragments
+
+Regex pattern:
+```regex
+/^([A-Za-z]{2,12}(?:[+][A-Za-z]{2,12})?):\/\/(?:([^@:]*:?(?:[^@]+)?)@)?(?:([A-Za-z0-9.-]+)(?::([0-9]{2,5}))?)(\/?(?:[-+~%/.,\w]*)?(?:\?[-+=&;%@.,/\w]*)?(?:#[.,!/\w]*)?)?$/
+```
+
+## Valid Inputs
+
+```typescript
+import { url } from 'decoders';
+
+url.verify('https://example.com');
+// ✓ URL { href: 'https://example.com/', ... }
+
+url.verify('http://localhost:3000/path?query=1');
+// ✓ URL { href: 'http://localhost:3000/path?query=1', ... }
+
+url.verify('ftp://user:pass@server.com:21/file.txt');
+// ✓ URL { href: 'ftp://user:pass@server.com:21/file.txt', ... }
+
+url.verify('custom+scheme://domain.org');
+// ✓ URL { href: 'custom+scheme://domain.org', ... }
+
+url.verify(new URL('https://example.com'));
+// ✓ URL { href: 'https://example.com/', ... }
+```
+
+## Invalid Inputs
+
+```typescript
+url.verify('not a url');              // ✗ Must be URL
+url.verify('example.com');            // ✗ Must be URL (missing scheme)
+url.verify('http://');                // ✗ Must be URL (missing host)
+url.verify('ht://short.com');         // ✗ Must be URL (scheme too short)
+url.verify(12345);                    // ✗ Must be string
+```
+
+## Error Message
+
+When validation fails: `"Must be URL"`
+
+## Implementation
+
+```typescript
+export const url: Decoder<URL> = either(
+  regex(url_re, 'Must be URL').transform((value) => new URL(value)),
+  instanceOf(URL),
+);
+```
+
+Source: `src/strings.ts:80-83`
+
+## Related Decoders
+
+- [httpsUrl](/api/strings/url#httpsurl) - Only accept HTTPS URLs
+- [urlString](/api/strings/url#urlstring) - Validate URLs but keep as strings
+- [email](/api/strings/email) - Validate email addresses
+
+---
+
+## httpsUrl
+
+Accepts strings that are valid URLs, but **only HTTPS ones**. Returns the value as a `URL` instance.
+
+### Type Signature
+
+```typescript
+const httpsUrl: Decoder<URL>
+```
+
+### Valid Inputs
+
+```typescript
+import { httpsUrl } from 'decoders';
+
+httpsUrl.verify('https://example.com');
+// ✓ URL { protocol: 'https:', ... }
+
+httpsUrl.verify('https://secure.api.com/v1/endpoint');
+// ✓ URL { protocol: 'https:', ... }
+```
+
+### Invalid Inputs
+
+```typescript
+httpsUrl.verify('http://example.com');   // ✗ Must be an HTTPS URL
+httpsUrl.verify('ftp://server.com');     // ✗ Must be an HTTPS URL
+httpsUrl.verify('not a url');            // ✗ Must be URL
+```
+
+### Error Messages
+
+- Non-URL: `"Must be URL"`
+- Non-HTTPS: `"Must be an HTTPS URL"`
+
+### Implementation
+
+```typescript
+export const httpsUrl: Decoder<URL> = url.refine(
+  (value) => value.protocol === 'https:',
+  'Must be an HTTPS URL',
+);
+```
+
+Source: `src/strings.ts:89-92`
+
+---
+
+## urlString
+
+Accepts strings that are valid URLs and returns them as strings (not `URL` instances).
+
+### Type Signature
+
+```typescript
+const urlString: Decoder<string>
+```
+
+### Validation
+
+Uses the modern `URL.canParse()` method to validate URL strings.
+
+### Valid Inputs
+
+```typescript
+import { urlString } from 'decoders';
+
+urlString.verify('https://example.com');     // ✓ 'https://example.com'
+urlString.verify('http://localhost:3000');   // ✓ 'http://localhost:3000'
+urlString.verify('ftp://files.org/doc.pdf'); // ✓ 'ftp://files.org/doc.pdf'
+```
+
+### Invalid Inputs
+
+```typescript
+urlString.verify('not a url');      // ✗ Must be URL
+urlString.verify('example.com');    // ✗ Must be URL
+urlString.verify(new URL('...')); // ✗ Must be string
+```
+
+### Error Message
+
+When validation fails: `"Must be URL"`
+
+### Implementation
+
+```typescript
+export const urlString: Decoder<string> = string.refine(
+  (s) => URL.canParse(s),
+  'Must be URL',
+);
+```
+
+Source: `src/strings.ts:72-75`

@@ -1,0 +1,207 @@
+---
+title: oneOf
+---
+
+Accepts any value that is strictly-equal (using `===`) to one of the specified values.
+
+## Signature
+
+```typescript
+function oneOf<C extends Scalar>(
+  constants: readonly C[]
+): Decoder<C>
+```
+
+## Type Inference
+
+`oneOf()` creates a union type of literal types:
+
+```typescript
+const decoder = oneOf(['red', 'green', 'blue'] as const);
+// Type: Decoder<'red' | 'green' | 'blue'>
+
+const color = decoder.verify('red');
+// color is 'red' | 'green' | 'blue'
+```
+
+## Basic Usage
+
+```typescript
+import { oneOf } from 'decoders';
+
+const colorDecoder = oneOf(['red', 'green', 'blue'] as const);
+
+colorDecoder.verify('red');      // 'red'
+colorDecoder.verify('green');    // 'green'
+colorDecoder.verify('yellow');   // DecodeError: Must be one of "red", "green", "blue"
+```
+
+## Scalar Values Only
+
+`oneOf()` only works with scalar values (string, number, boolean, null, undefined, symbol):
+
+```typescript
+import { oneOf } from 'decoders';
+
+// Strings
+const statusDecoder = oneOf(['pending', 'success', 'error'] as const);
+
+// Numbers
+const versionDecoder = oneOf([1, 2, 3] as const);
+
+// Mixed
+const mixedDecoder = oneOf(['auto', 0, 100] as const);
+// Type: Decoder<'auto' | 0 | 100>
+```
+
+## String Literal Unions
+
+`oneOf()` is perfect for string literal union types:
+
+```typescript
+import { oneOf, object, string } from 'decoders';
+
+const directionDecoder = oneOf(['north', 'south', 'east', 'west'] as const);
+
+type Direction = DecoderType<typeof directionDecoder>;
+// type Direction = 'north' | 'south' | 'east' | 'west'
+
+const moveDecoder = object({
+  direction: directionDecoder,
+  distance: number,
+});
+```
+
+## Error Messages
+
+```typescript
+import { oneOf } from 'decoders';
+
+const decoder = oneOf(['a', 'b', 'c'] as const);
+
+decoder.verify('x');
+// DecodeError: Must be one of "a", "b", "c"
+```
+
+## Numeric Literals
+
+```typescript
+import { oneOf } from 'decoders';
+
+const httpStatusDecoder = oneOf([200, 201, 400, 404, 500] as const);
+
+type HttpStatus = DecoderType<typeof httpStatusDecoder>;
+// type HttpStatus = 200 | 201 | 400 | 404 | 500
+
+httpStatusDecoder.verify(200);    // 200
+httpStatusDecoder.verify(404);    // 404
+httpStatusDecoder.verify(418);    // DecodeError
+```
+
+## Boolean Unions
+
+```typescript
+import { oneOf } from 'decoders';
+
+// Though you'd typically just use `boolean` decoder
+const boolDecoder = oneOf([true, false] as const);
+
+// More useful for specific boolean values:
+const truthy = oneOf([true] as const);  // only accepts true
+```
+
+## vs constant()
+
+For a single value, use `constant()`. For multiple values, use `oneOf()`:
+
+```typescript
+import { constant, oneOf } from 'decoders';
+
+// Single value
+const decoder1 = constant('foo');
+
+// Multiple values
+const decoder2 = oneOf(['foo', 'bar'] as const);
+
+// These are equivalent:
+oneOf(['foo'] as const)
+constant('foo')
+```
+
+## vs either()
+
+`oneOf()` is optimized for scalar values and uses `===` equality. `either()` is for combining different decoders:
+
+```typescript
+import { oneOf, either, constant } from 'decoders';
+
+// Preferred: oneOf for scalar unions
+const decoder1 = oneOf(['a', 'b', 'c'] as const);
+
+// Works but less efficient:
+const decoder2 = either(constant('a'), constant('b'), constant('c'));
+
+// Use either() when combining different decoder types:
+const decoder3 = either(string, number);  // string | number
+```
+
+## TypeScript Enums
+
+For TypeScript enums, use the `enum_()` decoder instead:
+
+```typescript
+enum Color {
+  Red = 'red',
+  Green = 'green',
+  Blue = 'blue',
+}
+
+// Use enum_() for enums
+const colorDecoder = enum_(Color);
+
+// Don't use oneOf() with enum values (it works but enum_() is better)
+```
+
+## Real-World Example
+
+```typescript
+import { oneOf, object, string, number } from 'decoders';
+
+const taskDecoder = object({
+  id: string,
+  title: string,
+  status: oneOf(['todo', 'in-progress', 'done', 'archived'] as const),
+  priority: oneOf(['low', 'medium', 'high'] as const),
+});
+
+type Task = DecoderType<typeof taskDecoder>;
+// {
+//   id: string;
+//   title: string;
+//   status: 'todo' | 'in-progress' | 'done' | 'archived';
+//   priority: 'low' | 'medium' | 'high';
+// }
+
+const task = taskDecoder.verify({
+  id: '123',
+  title: 'Write docs',
+  status: 'in-progress',
+  priority: 'high',
+});
+```
+
+## Implementation
+
+Source: ~/workspace/source/src/unions.ts:89-97
+
+```typescript
+export function oneOf<C extends Scalar>(constants: readonly C[]): Decoder<C> {
+  return define((blob, ok, err) => {
+    const index = constants.indexOf(blob as C);
+    if (index !== -1) {
+      return ok(constants[index]);
+    }
+    return err(`Must be one of ${constants.map((value) => quote(value)).join(', ')}`);
+  });
+}
+```

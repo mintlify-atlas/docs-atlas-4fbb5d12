@@ -1,0 +1,134 @@
+---
+title: Date Decoders
+description: Decoders for validating and transforming date values
+---
+
+## date
+
+Accepts and returns `Date` instances.
+
+```typescript
+const date: Decoder<Date>
+```
+
+### Example
+
+```typescript
+import { date } from 'decoders';
+
+date.decode(new Date());                    // ✓ Date instance
+date.decode('2024-01-15T12:00:00Z');        // ✗ Error: Must be a Date
+date.decode(1705320000000);                 // ✗ Error: Must be a Date
+```
+
+## isoDateString
+
+Accepts and returns [ISO8601](https://en.wikipedia.org/wiki/ISO_8601)-formatted strings.
+
+```typescript
+const isoDateString: Decoder<string>
+```
+
+### Example
+
+```typescript
+import { isoDateString } from 'decoders';
+
+isoDateString.decode('2024-01-15T12:00:00Z');         // ✓ '2024-01-15T12:00:00Z'
+isoDateString.decode('2024-01-15T12:00:00+05:30');    // ✓ '2024-01-15T12:00:00+05:30'
+isoDateString.decode('2024-01-15T12:00:00.123Z');     // ✓ with milliseconds
+isoDateString.decode('2024-01-15');                   // ✗ Error: Must be ISO8601 format
+isoDateString.decode('9999-99-99T99:99:99Z');        // ✗ Error: Must be valid date/time value
+```
+
+## isoDate
+
+Accepts [ISO8601](https://en.wikipedia.org/wiki/ISO_8601)-formatted strings, returns them as `Date` instances.
+
+```typescript
+const isoDate: Decoder<Date>
+```
+
+### Example
+
+```typescript
+import { isoDate } from 'decoders';
+
+const result = isoDate.decode('2024-01-15T12:00:00Z');
+// ✓ Date instance: Mon Jan 15 2024 12:00:00 GMT+0000
+
+isoDate.decode('not a date');  // ✗ Error: Must be ISO8601 format
+```
+
+## flexDate
+
+Accepts either a Date, or an ISO date string, returns a Date instance. This is commonly useful to build decoders that can be reused to validate objects with Date instances as well as objects coming from JSON payloads.
+
+```typescript
+const flexDate: Decoder<Date>
+```
+
+### Example
+
+```typescript
+import { flexDate } from 'decoders';
+
+flexDate.decode(new Date());                   // ✓ Date instance
+flexDate.decode('2024-01-15T12:00:00Z');       // ✓ Date instance
+flexDate.decode(1705320000000);                // ✗ Error: Must be a Date or date string
+```
+
+### Use Case
+
+```typescript
+import { object, flexDate } from 'decoders';
+
+const eventDecoder = object({
+  name: string,
+  startDate: flexDate,
+});
+
+// Works with JSON payloads
+eventDecoder.decode({
+  name: 'Conference',
+  startDate: '2024-01-15T12:00:00Z'
+});
+
+// Also works with Date instances
+eventDecoder.decode({
+  name: 'Conference',
+  startDate: new Date('2024-01-15T12:00:00Z')
+});
+```
+
+## iso8601
+
+Alias of `isoDate`.
+
+```typescript
+const iso8601: Decoder<Date>
+```
+
+### Example
+
+```typescript
+import { iso8601 } from 'decoders';
+
+iso8601.decode('2024-01-15T12:00:00Z');  // ✓ Date instance
+```
+
+## dateString
+
+**Deprecated**: Renamed to `isoDateString`. This alias will be removed in 3.x.
+
+```typescript
+const dateString: Decoder<string>
+```
+
+## datelike
+
+**Deprecated**: Renamed to `flexDate`. This alias will be removed in 3.x.
+
+```typescript
+const datelike: Decoder<Date>
+```

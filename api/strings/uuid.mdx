@@ -1,0 +1,169 @@
+---
+title: uuid
+description: Validates UUID strings (universally unique identifiers)
+---
+
+# uuid
+
+Accepts strings that are valid [UUIDs](https://en.wikipedia.org/wiki/universally_unique_identifier) (universally unique identifiers).
+
+## Type Signature
+
+```typescript
+const uuid: Decoder<string>
+```
+
+## Validation Pattern
+
+Validates the standard UUID format: `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
+
+Regex pattern:
+```regex
+/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+```
+
+- 8 hex digits
+- hyphen
+- 4 hex digits
+- hyphen
+- 4 hex digits
+- hyphen
+- 4 hex digits
+- hyphen
+- 12 hex digits
+
+Case-insensitive. Accepts all UUID versions (v1, v3, v4, v5).
+
+## Valid Inputs
+
+```typescript
+import { uuid } from 'decoders';
+
+uuid.verify('123e4567-e89b-12d3-a456-426614174000'); // ✓
+uuid.verify('550e8400-e29b-41d4-a716-446655440000'); // ✓
+uuid.verify('6ba7b810-9dad-11d1-80b4-00c04fd430c8'); // ✓ UUIDv1
+uuid.verify('f47ac10b-58cc-4372-a567-0e02b2c3d479'); // ✓ UUIDv4
+uuid.verify('ABCDEF12-3456-7890-ABCD-EF1234567890'); // ✓ uppercase
+```
+
+## Invalid Inputs
+
+```typescript
+uuid.verify('not-a-uuid');                          // ✗ Must be uuid
+uuid.verify('123e4567-e89b-12d3-a456');             // ✗ Must be uuid (too short)
+uuid.verify('123e4567e89b12d3a456426614174000');    // ✗ Must be uuid (missing hyphens)
+uuid.verify('123e4567-e89b-12d3-a456-42661417400g'); // ✗ Must be uuid (invalid char 'g')
+uuid.verify(123);                                   // ✗ Must be string
+```
+
+## Error Message
+
+When validation fails: `"Must be uuid"`
+
+## Implementation
+
+```typescript
+export const uuid: Decoder<string> = regex(
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+  'Must be uuid',
+);
+```
+
+Source: `src/strings.ts:117-120`
+
+## Related Decoders
+
+- [uuidv1](#uuidv1) - Only accept UUIDv1 (date-time and MAC address)
+- [uuidv4](#uuidv4) - Only accept UUIDv4 (random)
+- [regex](/api/strings/regex) - Create custom string pattern validators
+
+---
+
+## uuidv1
+
+Like `uuid`, but only accepts [UUIDv1](https://en.wikipedia.org/wiki/Universally_unique_identifier#Version_1_%28date-time_and_MAC_address%29) strings.
+
+UUIDv1 is based on date-time and MAC address. The version digit (at position 14) must be `'1'`.
+
+### Type Signature
+
+```typescript
+const uuidv1: Decoder<string>
+```
+
+### Valid Inputs
+
+```typescript
+import { uuidv1 } from 'decoders';
+
+uuidv1.verify('6ba7b810-9dad-11d1-80b4-00c04fd430c8'); // ✓
+uuidv1.verify('c232ab00-9414-11ec-b3c8-9f68deced846'); // ✓
+```
+
+### Invalid Inputs
+
+```typescript
+uuidv1.verify('f47ac10b-58cc-4372-a567-0e02b2c3d479'); // ✗ Must be uuidv1 (v4 UUID)
+uuidv1.verify('550e8400-e29b-41d4-a716-446655440000'); // ✗ Must be uuidv1 (v4 UUID)
+uuidv1.verify('not-a-uuid');                          // ✗ Must be uuid
+```
+
+### Error Messages
+
+- Not a UUID: `"Must be uuid"`
+- Not version 1: `"Must be uuidv1"`
+
+### Implementation
+
+```typescript
+export const uuidv1: Decoder<string> =
+  uuid.refine((value) => value[14] === '1', 'Must be uuidv1');
+```
+
+Source: `src/strings.ts:127-129`
+
+---
+
+## uuidv4
+
+Like `uuid`, but only accepts [UUIDv4](https://en.wikipedia.org/wiki/Universally_unique_identifier#Version_4_%28random%29) strings.
+
+UUIDv4 is randomly generated. The version digit (at position 14) must be `'4'`.
+
+### Type Signature
+
+```typescript
+const uuidv4: Decoder<string>
+```
+
+### Valid Inputs
+
+```typescript
+import { uuidv4 } from 'decoders';
+
+uuidv4.verify('f47ac10b-58cc-4372-a567-0e02b2c3d479'); // ✓
+uuidv4.verify('550e8400-e29b-41d4-a716-446655440000'); // ✓
+uuidv4.verify('a3bb189e-8bf9-3888-9912-ace4e6543002'); // ✗ Must be uuidv4 (v3 UUID)
+```
+
+### Invalid Inputs
+
+```typescript
+uuidv4.verify('6ba7b810-9dad-11d1-80b4-00c04fd430c8'); // ✗ Must be uuidv4 (v1 UUID)
+uuidv4.verify('a3bb189e-8bf9-3888-9912-ace4e6543002'); // ✗ Must be uuidv4 (v3 UUID)
+uuidv4.verify('not-a-uuid');                          // ✗ Must be uuid
+```
+
+### Error Messages
+
+- Not a UUID: `"Must be uuid"`
+- Not version 4: `"Must be uuidv4"`
+
+### Implementation
+
+```typescript
+export const uuidv4: Decoder<string> =
+  uuid.refine((value) => value[14] === '4', 'Must be uuidv4');
+```
+
+Source: `src/strings.ts:136-138`

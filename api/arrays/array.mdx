@@ -1,0 +1,268 @@
+---
+title: array
+description: Decode arrays with validated elements
+---
+
+## Signature
+
+```typescript
+function array<T>(decoder: Decoder<T>): Decoder<T[]>
+```
+
+## Description
+
+Accepts arrays of whatever the given decoder accepts. Every element in the array is validated using the provided decoder.
+
+If any element fails validation, the entire array decode fails with an error indicating which element (by index) caused the failure.
+
+## Type Inference
+
+The return type is automatically inferred from the element decoder:
+
+```typescript
+const numbersDecoder = array(number);
+// Type: Decoder<number[]>
+
+const usersDecoder = array(object({
+  id: number,
+  name: string
+}));
+// Type: Decoder<Array<{ id: number; name: string }>>
+```
+
+## Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `decoder` | `Decoder<T>` | The decoder to apply to each array element |
+
+## Returns
+
+A `Decoder<T[]>` that validates each element and returns an array of validated values.
+
+## Behavior
+
+- **Empty arrays**: Accepted (returns `[]`)
+- **Valid elements**: All elements validated and returned
+- **Invalid element**: Decode fails immediately at first error
+- **Not an array**: Decode fails with "Must be an array"
+- **Error reporting**: Includes the index of the failed element
+
+## Examples
+
+### Basic Usage
+
+```typescript
+import { array, string, number } from 'decoders';
+
+const stringsDecoder = array(string);
+
+stringsDecoder.decode(['a', 'b', 'c']);
+// Result: ['a', 'b', 'c']
+
+stringsDecoder.decode([]);
+// Result: []
+
+stringsDecoder.decode(['a', 123, 'c']);
+// Error: "Must be string (at index 1)"
+```
+
+### Array of Numbers
+
+```typescript
+import { array, number } from 'decoders';
+
+const numbersDecoder = array(number);
+
+numbersDecoder.decode([1, 2, 3, 4, 5]);
+// Result: [1, 2, 3, 4, 5]
+
+numbersDecoder.decode([1, 2, 'three', 4]);
+// Error: "Must be number (at index 2)"
+```
+
+### Array of Objects
+
+```typescript
+import { array, object, string, number } from 'decoders';
+
+const usersDecoder = array(
+  object({
+    id: number,
+    name: string,
+    email: string
+  })
+);
+
+usersDecoder.decode([
+  { id: 1, name: 'Alice', email: 'alice@example.com' },
+  { id: 2, name: 'Bob', email: 'bob@example.com' }
+]);
+// Result: [
+//   { id: 1, name: 'Alice', email: 'alice@example.com' },
+//   { id: 2, name: 'Bob', email: 'bob@example.com' }
+// ]
+
+usersDecoder.decode([
+  { id: 1, name: 'Alice', email: 'alice@example.com' },
+  { id: 2, name: 'Bob' }  // Missing email
+]);
+// Error at index 1: "Missing key: 'email'"
+```
+
+### Nested Arrays
+
+```typescript
+import { array, number } from 'decoders';
+
+const matrixDecoder = array(array(number));
+
+matrixDecoder.decode([
+  [1, 2, 3],
+  [4, 5, 6],
+  [7, 8, 9]
+]);
+// Result: [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+
+matrixDecoder.decode([
+  [1, 2, 3],
+  [4, 'five', 6]
+]);
+// Error: "Must be number (at index 1)" (in the nested array at index 1)
+```
+
+### Union Types
+
+```typescript
+import { array, either, string, number } from 'decoders';
+
+const mixedDecoder = array(either(string, number));
+
+mixedDecoder.decode([1, 'two', 3, 'four', 5]);
+// Result: [1, 'two', 3, 'four', 5]
+
+mixedDecoder.decode([1, 'two', true]);
+// Error at index 2: (shows error from either decoder)
+```
+
+### Optional Elements
+
+```typescript
+import { array, optional, string } from 'decoders';
+
+const decoder = array(optional(string));
+
+decoder.decode(['a', undefined, 'c', undefined]);
+// Result: ['a', undefined, 'c', undefined]
+```
+
+### Custom Decoders
+
+```typescript
+import { array, string } from 'decoders';
+
+const uppercaseString = string.transform(s => s.toUpperCase());
+const uppercaseArrayDecoder = array(uppercaseString);
+
+uppercaseArrayDecoder.decode(['hello', 'world']);
+// Result: ['HELLO', 'WORLD']
+```
+
+### API Response Lists
+
+```typescript
+import { array, object, string, number, iso8601 } from 'decoders';
+
+const postDecoder = object({
+  id: number,
+  title: string,
+  author: string,
+  publishedAt: iso8601
+});
+
+const postsListDecoder = array(postDecoder);
+
+const apiResponse = postsListDecoder.decode([
+  {
+    id: 1,
+    title: 'First Post',
+    author: 'Alice',
+    publishedAt: '2024-01-15T10:00:00Z'
+  },
+  {
+    id: 2,
+    title: 'Second Post',
+    author: 'Bob',
+    publishedAt: '2024-01-16T14:30:00Z'
+  }
+]);
+```
+
+## Error Messages
+
+The decoder provides detailed error messages:
+
+- **Not an array**: `Must be an array`
+- **Invalid element**: `<element error> (at index N)`
+  - Example: `Must be string (at index 3)`
+  - Example: `Missing key: 'email' (at index 1)`
+
+The error annotation includes the index information to help you identify which element failed.
+
+## Performance Considerations
+
+- Validation stops at the **first** error (fail-fast behavior)
+- Does not collect all errors from all elements
+- For large arrays, this means faster failure detection
+- Previously validated elements are discarded when an error occurs
+
+## Empty Arrays
+
+```typescript
+import { array, string } from 'decoders';
+
+const decoder = array(string);
+
+decoder.decode([]);
+// Result: []
+// Type: string[]
+```
+
+Empty arrays are always valid, regardless of the element decoder.
+
+## Non-Empty Arrays
+
+If you need to ensure an array has at least one element, use [`nonEmptyArray`](/api/arrays/non-empty-array):
+
+```typescript
+import { nonEmptyArray, string } from 'decoders';
+
+const decoder = nonEmptyArray(string);
+
+decoder.decode([]);
+// Error: "Must be non-empty array"
+
+decoder.decode(['a']);
+// Result: ['a']
+// Type: [string, ...string[]] (tuple with at least one element)
+```
+
+## Implementation Notes
+
+- Built on top of the `poja` decoder using `.chain()`
+- Uses the element decoder's `.decode()` method directly for performance
+- Constructs a new array with validated elements
+- On error, clears the results array and returns immediately
+- Error annotations include a cloned array with the error injected at the failed index
+
+## Related Decoders
+
+- [`poja`](/api/arrays/poja) - Accepts any array without element validation
+- [`tuple`](/api/arrays/tuple) - Decode fixed-length arrays with different types per position
+- [`nonEmptyArray`](/api/arrays/non-empty-array) - Like `array()` but requires at least one element
+
+## See Also
+
+- [Error handling](/guides/error-handling)
+- [Composing decoders](/guides/composition)
+- [Working with collections](/guides/collections)

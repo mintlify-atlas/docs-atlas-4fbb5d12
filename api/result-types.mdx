@@ -1,0 +1,348 @@
+---
+title: 'Result Types'
+description: 'Result, Ok, Err, and DecodeResult types for handling decoder outcomes'
+---
+
+The decoders library uses Result types to represent the outcome of decoding operations. This provides a type-safe way to handle both successful and failed validations without throwing exceptions.
+
+## Result&lt;T, E&gt;
+
+A discriminated union type representing either a successful result or an error.
+
+```typescript
+type Result<T, E> = Ok<T> | Err<E>
+```
+
+### Type Parameters
+
+<ParamField path="T" type="type">
+  The type of the success value
+</ParamField>
+
+<ParamField path="E" type="type">
+  The type of the error value
+</ParamField>
+
+## Ok&lt;T&gt;
+
+Represents a successful computation.
+
+```typescript
+type Ok<T> = {
+  readonly ok: true;
+  readonly value: T;
+  readonly error?: never;
+}
+```
+
+### Properties
+
+<ParamField path="ok" type="true">
+  Discriminant property that's always `true` for successful results
+</ParamField>
+
+<ParamField path="value" type="T">
+  The successful result value
+</ParamField>
+
+<ParamField path="error" type="never">
+  Always undefined for successful results (TypeScript will prevent access)
+</ParamField>
+
+## Err&lt;E&gt;
+
+Represents a failed computation.
+
+```typescript
+type Err<E> = {
+  readonly ok: false;
+  readonly value?: never;
+  readonly error: E;
+}
+```
+
+### Properties
+
+<ParamField path="ok" type="false">
+  Discriminant property that's always `false` for error results
+</ParamField>
+
+<ParamField path="value" type="never">
+  Always undefined for error results (TypeScript will prevent access)
+</ParamField>
+
+<ParamField path="error" type="E">
+  The error value
+</ParamField>
+
+## DecodeResult&lt;T&gt;
+
+A specialized Result type used by decoders, where errors are always `Annotation` objects.
+
+```typescript
+type DecodeResult<T> = Result<T, Annotation>
+```
+
+This is equivalent to:
+```typescript
+type DecodeResult<T> = Ok<T> | Err<Annotation>
+```
+
+## Constructor Functions
+
+### ok()
+
+Creates a successful Result.
+
+<ParamField path="value" type="T" required>
+  The success value
+</ParamField>
+
+**Returns:** `Ok<T>`
+
+```typescript
+import { ok } from 'decoders';
+
+const result = ok(42);
+console.log(result.ok); // true
+console.log(result.value); // 42
+console.log(result.error); // undefined
+```
+
+### err()
+
+Creates an error Result.
+
+<ParamField path="error" type="E" required>
+  The error value
+</ParamField>
+
+**Returns:** `Err<E>`
+
+```typescript
+import { err } from 'decoders';
+
+const result = err('Something went wrong');
+console.log(result.ok); // false
+console.log(result.value); // undefined
+console.log(result.error); // 'Something went wrong'
+
+// With Error object
+const result2 = err(new Error('Validation failed'));
+console.log(result2.ok); // false
+console.log(result2.error); // Error object
+```
+
+## Usage Examples
+
+### Pattern Matching with Type Guards
+
+The `ok` property acts as a discriminant for type-safe pattern matching:
+
+```typescript
+import { string } from 'decoders';
+
+const result = string.decode(input);
+
+if (result.ok) {
+  // TypeScript knows this is Ok<string>
+  console.log(result.value); // string
+  // result.error // ❌ TypeScript error - property doesn't exist
+} else {
+  // TypeScript knows this is Err<Annotation>
+  console.log(result.error); // Annotation
+  // result.value // ❌ TypeScript error - property doesn't exist
+}
+```
+
+### Handling Results
+
+```typescript
+import { number } from 'decoders';
+
+function processNumber(input: unknown): number | null {
+  const result = number.decode(input);
+  
+  if (result.ok) {
+    return result.value;
+  }
+  
+  console.error('Validation failed:', result.error);
+  return null;
+}
+
+console.log(processNumber(42)); // 42
+console.log(processNumber('not a number')); // null
+```
+
+### Accessing Result Properties
+
+```typescript
+import { ok, err } from 'decoders';
+
+const success = ok(42);
+console.log(success.ok); // true
+console.log(success.value); // 42
+console.log(success.error); // undefined
+
+const failure = err('Oops');
+console.log(failure.ok); // false
+console.log(failure.value); // undefined
+console.log(failure.error); // 'Oops'
+```
+
+### Using in Custom Decoders
+
+```typescript
+import { define, type DecodeResult } from 'decoders';
+
+const positiveNumber = define((blob, ok, err): DecodeResult<number> => {
+  if (typeof blob !== 'number') {
+    return err('Must be a number');
+  }
+  
+  if (blob <= 0) {
+    return err('Must be positive');
+  }
+  
+  return ok(blob);
+});
+
+const result = positiveNumber.decode(5);
+if (result.ok) {
+  console.log('Valid:', result.value);
+}
+```
+
+### Extracting Values Safely
+
+Use the `.value` property of the Result, which is `undefined` for errors:
+
+```typescript
+import { string } from 'decoders';
+
+const result1 = string.decode('hello');
+const result2 = string.decode(123);
+
+console.log(result1.value); // 'hello'
+console.log(result2.value); // undefined
+```
+
+Or use the decoder's `.value()` method for convenience:
+
+```typescript
+import { string } from 'decoders';
+
+const value1 = string.value('hello'); // 'hello'
+const value2 = string.value(123);     // undefined
+```
+
+## Comparison with Exceptions
+
+### Traditional Exception Handling
+
+```typescript
+try {
+  const value = string.verify(input);
+  console.log('Success:', value);
+} catch (error) {
+  console.error('Failed:', error);
+}
+```
+
+### Result-Based Handling
+
+```typescript
+const result = string.decode(input);
+
+if (result.ok) {
+  console.log('Success:', result.value);
+} else {
+  console.error('Failed:', result.error);
+}
+```
+
+## Benefits of Result Types
+
+### Type Safety
+
+TypeScript enforces that you handle both success and error cases:
+
+```typescript
+import { number } from 'decoders';
+
+const result = number.decode(input);
+
+// ❌ TypeScript error - value might not exist
+const x = result.value.toFixed(2);
+
+// ✅ Correct - check the discriminant first
+if (result.ok) {
+  const x = result.value.toFixed(2);
+}
+```
+
+### No Exceptions in Happy Path
+
+Results allow you to handle validation without try-catch blocks:
+
+```typescript
+import { object, string, number } from 'decoders';
+
+const userDecoder = object({
+  name: string,
+  age: number,
+});
+
+const result = userDecoder.decode(data);
+
+if (result.ok) {
+  // Use the validated data
+  saveUser(result.value);
+} else {
+  // Handle the error
+  return { error: formatError(result.error) };
+}
+```
+
+### Composability
+
+Results can be easily composed and transformed:
+
+```typescript
+import { string, number } from 'decoders';
+
+function parseNumbers(inputs: unknown[]): number[] {
+  const results = inputs.map(input => number.decode(input));
+  
+  // Filter out errors
+  return results
+    .filter(r => r.ok)
+    .map(r => r.value);
+}
+
+// Or fail fast on first error
+function parseNumbersStrict(inputs: unknown[]): number[] | null {
+  const numbers: number[] = [];
+  
+  for (const input of inputs) {
+    const result = number.decode(input);
+    if (!result.ok) {
+      return null; // Stop on first error
+    }
+    numbers.push(result.value);
+  }
+  
+  return numbers;
+}
+```
+
+## Related Types
+
+- [`Decoder<T>`](/api/decoder-class) - The decoder class that produces DecodeResults
+- `Annotation` - The error type used in DecodeResults (see formatting documentation)
+
+## See Also
+
+- [Decoder Class](/api/decoder-class) - Methods for working with decoders
+- [define()](/api/define) - Creating custom decoders that return Results

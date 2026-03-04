@@ -1,0 +1,445 @@
+---
+title: Composing Decoders
+description: Learn how to build complex decoders from simple primitives using transform, refine, pipe, and chain methods.
+---
+
+Decoders are composable building blocks. You can start with simple primitives and combine them into complex validators for any data structure.
+
+## Building Blocks
+
+Start with basic decoders:
+
+```typescript
+import { string, number, boolean, array, object } from 'decoders';
+
+// Primitives
+string  // Decoder<string>
+number  // Decoder<number>
+boolean // Decoder<boolean>
+
+// Collections
+array(string)  // Decoder<string[]>
+
+// Objects
+object({
+  id: number,
+  name: string,
+}) // Decoder<{ id: number; name: string }>
+```
+
+## The .transform() Method
+
+Use `.transform()` to convert a decoded value into a different type:
+
+```typescript
+import { string, number } from 'decoders';
+
+// Parse a comma-separated string into an array
+const csvDecoder = string.transform(s => s.split(','));
+
+const tags = csvDecoder.verify('react,typescript,nodejs');
+// tags: string[] = ['react', 'typescript', 'nodejs']
+
+// Parse a string into a number
+const numericString = string.transform(s => Number(s));
+
+const value = numericString.verify('42');
+// value: number = 42
+
+// Transform to uppercase
+const uppercase = string.transform(s => s.toUpperCase());
+
+const shouting = uppercase.verify('hello');
+// shouting: string = 'HELLO'
+```
+
+### Throwing in Transforms
+
+If a transform function throws, the decoder fails with that error message:
+
+```typescript
+import { string } from 'decoders';
+
+const jsonDecoder = string.transform(s => {
+  try {
+    return JSON.parse(s);
+  } catch (e) {
+    throw new Error('Invalid JSON');
+  }
+});
+
+const result = jsonDecoder.decode('not json');
+if (!result.ok) {
+  console.log(formatShort(result.error));
+  // Invalid JSON
+}
+```
+
+### Chaining Transforms
+
+Transforms can be chained:
+
+```typescript
+import { string } from 'decoders';
+
+const wordCountDecoder = string
+  .transform(s => s.trim())
+  .transform(s => s.split(/\s+/))
+  .transform(words => words.length);
+
+const count = wordCountDecoder.verify('  hello   world  ');
+// count: number = 2
+```
+
+## The .refine() Method
+
+Use `.refine()` to add validation constraints without changing the type:
+
+```typescript
+import { string, number } from 'decoders';
+
+// Validate string length
+const username = string.refine(
+  s => s.length >= 3 && s.length <= 20,
+  'Username must be 3-20 characters'
+);
+
+username.verify('ab'); // Throws: Username must be 3-20 characters
+username.verify('alice'); // OK: 'alice'
+
+// Validate number range
+const percentage = number.refine(
+  n => n >= 0 && n <= 100,
+  'Must be between 0 and 100'
+);
+
+percentage.verify(42);  // OK: 42
+percentage.verify(150); // Throws: Must be between 0 and 100
+
+// Validate with regular expressions
+const hexColor = string.refine(
+  s => /^#[0-9A-Fa-f]{6}$/.test(s),
+  'Must be a valid hex color'
+);
+
+hexColor.verify('#FF5733'); // OK: '#FF5733'
+hexColor.verify('red');     // Throws: Must be a valid hex color
+```
+
+### Multiple Refinements
+
+Chain refinements for multiple constraints:
+
+```typescript
+import { string } from 'decoders';
+
+const password = string
+  .refine(s => s.length >= 8, 'Password must be at least 8 characters')
+  .refine(s => /[A-Z]/.test(s), 'Password must contain an uppercase letter')
+  .refine(s => /[0-9]/.test(s), 'Password must contain a number');
+
+password.verify('short'); // Throws: Password must be at least 8 characters
+password.verify('alllowercase123'); // Throws: Password must contain an uppercase letter
+password.verify('NoNumber'); // Throws: Password must contain a number
+password.verify('Valid123'); // OK: 'Valid123'
+```
+
+### Type Narrowing with Refinements
+
+Use type predicates for type narrowing:
+
+```typescript
+import { number } from 'decoders';
+
+type PositiveNumber = number & { __brand: 'positive' };
+
+const positiveNumber = number.refine(
+  (n): n is PositiveNumber => n > 0,
+  'Must be positive'
+);
+
+const value = positiveNumber.verify(42);
+// value: PositiveNumber
+```
+
+## The .pipe() Method
+
+Use `.pipe()` to send the output of one decoder as input to another decoder:
+
+```typescript
+import { string, array, nonEmptyString } from 'decoders';
+
+// Parse CSV and validate each element is non-empty
+const nonEmptyCsv = string
+  .transform(s => s.split(','))
+  .pipe(array(nonEmptyString));
+
+nonEmptyCsv.verify('a,b,c'); // OK: ['a', 'b', 'c']
+nonEmptyCsv.verify('a,,c');  // Throws: Must be non-empty string
+```
+
+### Conditional Piping
+
+You can conditionally choose which decoder to pipe to:
+
+```typescript
+import { string, email, regex } from 'decoders';
+
+const username = regex(/^[a-z0-9_]+$/, 'Invalid username');
+
+const userIdentifier = string.pipe(s => 
+  s.startsWith('@') ? username : email
+);
+
+userIdentifier.verify('@alice');           // Uses username decoder
+userIdentifier.verify('alice@example.com'); // Uses email decoder
+userIdentifier.verify('@alice!');          // Throws: Invalid username
+```
+
+### Transform + Pipe Pattern
+
+A common pattern is transforming then validating:
+
+```typescript
+import { string, object, number } from 'decoders';
+
+const jsonObject = string
+  .transform(s => JSON.parse(s))
+  .pipe(object({
+    id: number,
+    name: string,
+  }));
+
+const user = jsonObject.verify('{"id": 1, "name": "Alice"}');
+// user: { id: number; name: string }
+```
+
+## The .chain() Method
+
+The `.chain()` method is a low-level API for advanced composition. It allows you to create the next decoder dynamically based on the previous result.
+
+```typescript
+import { define, string, number } from 'decoders';
+
+// Example: Parse version strings like "v1.2.3"
+const versionDecoder = string.chain((versionStr, ok, err) => {
+  const match = versionStr.match(/^v(\d+)\.(\d+)\.(\d+)$/);
+  
+  if (!match) {
+    return err('Invalid version format');
+  }
+  
+  return ok({
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+  });
+});
+
+const version = versionDecoder.verify('v1.2.3');
+// version: { major: number; minor: number; patch: number }
+```
+
+In most cases, `.transform()`, `.refine()`, or `.pipe()` are more ergonomic than `.chain()`.
+
+## The .reject() Method
+
+The `.reject()` method is like `.refine()` but allows dynamic error messages:
+
+```typescript
+import { number } from 'decoders';
+
+const evenNumber = number.reject(n => 
+  n % 2 === 0 ? null : `${n} is not even`
+);
+
+evenNumber.verify(4);  // OK: 4
+evenNumber.verify(7);  // Throws: 7 is not even
+```
+
+Return `null` to accept the value, or return a string error message to reject it.
+
+## The .describe() Method
+
+Use `.describe()` to replace the default error message:
+
+```typescript
+import { number } from 'decoders';
+
+const age = number.describe('Invalid age value');
+
+age.verify('not a number');
+// Throws: Invalid age value
+// (instead of the default "Must be number")
+```
+
+## Complex Composition Examples
+
+### Building a URL Decoder
+
+```typescript
+import { string, regex } from 'decoders';
+
+const urlDecoder = string
+  .refine(s => s.startsWith('http://') || s.startsWith('https://'),
+    'URL must start with http:// or https://')
+  .transform(s => new URL(s))
+  .refine(url => url.hostname.length > 0, 'URL must have a hostname');
+
+const url = urlDecoder.verify('https://example.com/path');
+// url: URL
+```
+
+### Building a Date Range Decoder
+
+```typescript
+import { object, isoDate } from 'decoders';
+
+const dateRangeDecoder = object({
+  start: isoDate,
+  end: isoDate,
+}).refine(
+  range => range.start <= range.end,
+  'Start date must be before end date'
+);
+
+const range = dateRangeDecoder.verify({
+  start: '2024-01-01',
+  end: '2024-12-31',
+});
+// range: { start: Date; end: Date }
+```
+
+### Building a Polymorphic Decoder
+
+```typescript
+import { object, string, number, array, either } from 'decoders';
+
+const textMessage = object({
+  type: constant('text'),
+  content: string,
+});
+
+const imageMessage = object({
+  type: constant('image'),
+  url: string,
+  width: number,
+  height: number,
+});
+
+const messageDecoder = either(textMessage, imageMessage);
+
+const message = messageDecoder.verify({
+  type: 'text',
+  content: 'Hello!',
+});
+// message: { type: 'text'; content: string } | 
+//          { type: 'image'; url: string; width: number; height: number }
+```
+
+### Reusable Decoder Components
+
+Extract common patterns into reusable decoders:
+
+```typescript
+import { string, number, Decoder } from 'decoders';
+
+// Reusable pagination decoder
+function paginated<T>(itemDecoder: Decoder<T>) {
+  return object({
+    items: array(itemDecoder),
+    page: number,
+    pageSize: number,
+    total: number,
+  });
+}
+
+// Reusable timestamped decoder
+function timestamped<T>(decoder: Decoder<T>) {
+  return object({
+    data: decoder,
+    createdAt: isoDate,
+    updatedAt: isoDate,
+  });
+}
+
+// Compose them together
+const userDecoder = object({
+  id: number,
+  name: string,
+});
+
+const paginatedUsers = paginated(timestamped(userDecoder));
+
+const result = paginatedUsers.verify(apiResponse);
+// result: {
+//   items: {
+//     data: { id: number; name: string };
+//     createdAt: Date;
+//     updatedAt: Date;
+//   }[];
+//   page: number;
+//   pageSize: number;
+//   total: number;
+// }
+```
+
+### Validation with Side Effects
+
+```typescript
+import { string, email } from 'decoders';
+
+const registeredEmail = email.reject(async emailAddress => {
+  const exists = await checkEmailExists(emailAddress);
+  return exists ? 'Email already registered' : null;
+});
+
+// Note: This returns a Promise
+const result = await registeredEmail.decode('user@example.com');
+```
+
+## Composition Best Practices
+
+1. **Start Simple**: Begin with primitive decoders and compose upward
+2. **Single Responsibility**: Each decoder should validate one concern
+3. **Reuse Components**: Extract common patterns into functions
+4. **Transform Before Pipe**: Transform data, then pipe to validate
+5. **Chain Refinements**: Add multiple refinements for clear error messages
+6. **Prefer Higher-Level APIs**: Use `.transform()`, `.refine()`, `.pipe()` over `.chain()`
+
+## Common Patterns
+
+### Normalizing Input
+
+```typescript
+import { string } from 'decoders';
+
+const normalizedEmail = string
+  .transform(s => s.trim())
+  .transform(s => s.toLowerCase())
+  .pipe(email);
+```
+
+### Parsing then Validating
+
+```typescript
+import { string, number } from 'decoders';
+
+const port = string
+  .transform(s => Number(s))
+  .pipe(number)
+  .refine(n => n >= 1024 && n <= 65535, 'Port must be between 1024-65535');
+```
+
+### Default Values with Fallback
+
+```typescript
+import { optional, string } from 'decoders';
+
+const withDefault = optional(string, 'default value');
+
+withDefault.verify(undefined); // 'default value'
+withDefault.verify('custom');  // 'custom'
+```
+
+By mastering these composition techniques, you can build decoders for any data structure while keeping your code clean, type-safe, and maintainable.

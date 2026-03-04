@@ -1,0 +1,43 @@
+---
+title: BigInt Decoders
+description: Decoders for validating bigint values
+---
+
+## bigint
+
+Accepts any valid `bigint` value.
+
+```typescript
+const bigint: Decoder<bigint>
+```
+
+### Example
+
+```typescript
+import { bigint } from 'decoders';
+
+bigint.decode(42n);                           // ✓ 42n
+bigint.decode(9007199254740991n);             // ✓ 9007199254740991n
+bigint.decode(BigInt('12345678901234567890'));  // ✓ 12345678901234567890n
+bigint.decode(42);                            // ✗ Error: Must be bigint
+bigint.decode('42');                          // ✗ Error: Must be bigint
+```
+
+### Use Case
+
+Bigints are useful for representing integers that are too large to be safely represented as JavaScript numbers (beyond `Number.MAX_SAFE_INTEGER` which is 2^53 - 1).
+
+```typescript
+import { object, bigint } from 'decoders';
+
+const userDecoder = object({
+  id: bigint,
+  balance: bigint,
+});
+
+userDecoder.decode({
+  id: 12345678901234567890n,
+  balance: 9999999999999999999n,
+});
+// ✓ { id: 12345678901234567890n, balance: 9999999999999999999n }
+```

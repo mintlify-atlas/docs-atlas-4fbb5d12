@@ -1,97 +1,315 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: Decoders documentation
+description: Elegant validation library for type-safe input data for TypeScript
+mode: custom
 ---
 
-## Setting up
+<div className="relative bg-gradient-to-br from-[#1e3a8a] via-[#1e40af] to-[#3B82F6] dark:from-[#0f1629] dark:via-[#1e293b] dark:to-[#1e3a8a] py-20">
+  <div className="max-w-6xl mx-auto px-6 lg:px-8">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+      <div className="lg:col-span-7">
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6">
+          Type-safe validation for TypeScript
+        </h1>
+        <p className="text-lg sm:text-xl text-gray-100 dark:text-gray-200 mb-8 max-w-2xl">
+          Elegant and battle-tested validation library that provides runtime type checking with automatic TypeScript type inference
+        </p>
+        <div className="flex flex-wrap gap-4">
+          <a 
+            href="/quickstart" 
+            className="inline-flex items-center px-6 py-3 rounded-lg bg-white text-[#3B82F6] font-semibold hover:bg-gray-100 transition-colors no-underline"
+          >
+            Get started
+          </a>
+          <a 
+            href="/api/decoder-class" 
+            className="inline-flex items-center px-6 py-3 rounded-lg border-2 border-white/30 bg-white/10 text-white font-semibold hover:bg-white/20 hover:border-white/50 transition-colors no-underline"
+          >
+            API reference
+          </a>
+        </div>
+      </div>
+      <div className="lg:col-span-5">
+        <div className="bg-[#1e293b] dark:bg-[#0f1117] rounded-xl p-6 border border-white/10">
+          ```typescript
+          import { object, string, number, array } from 'decoders';
 
-Get your documentation site up and running in minutes.
+          const userDecoder = object({
+            id: number,
+            name: string,
+            tags: array(string),
+          });
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+          const user = userDecoder.verify(externalData);
+          //    ^? { id: number; name: string; tags: string[] }
+          ```
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-## Make it yours
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="text-center mb-12">
+    <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+      Why decoders?
+    </h2>
+    <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+      Build robust TypeScript applications with confidence using validation that catches errors at runtime
+    </p>
+  </div>
 
-Design a docs site that looks great and empowers your users.
+  <CardGroup cols={3}>
+    <Card title="Type inference" icon="wand-magic-sparkles" href="/concepts/type-inference">
+      Automatic TypeScript type inference from your decoder definitions
+    </Card>
+    <Card title="Composable" icon="puzzle-piece" href="/concepts/composing-decoders">
+      Build complex validators from simple, reusable building blocks
+    </Card>
+    <Card title="Zero dependencies" icon="feather" href="/installation">
+      Tiny bundle size with zero runtime dependencies and full tree-shaking support
+    </Card>
+    <Card title="Excellent errors" icon="circle-exclamation" href="/concepts/error-handling">
+      Detailed error messages that pinpoint exactly what went wrong
+    </Card>
+    <Card title="Battle-tested" icon="shield-check" href="/introduction">
+      Used in production by thousands of projects with comprehensive test coverage
+    </Card>
+    <Card title="Cross-platform" icon="globe" href="/installation">
+      Works everywhere: Node.js, browsers, Bun, Deno, and Cloudflare Workers
+    </Card>
+  </CardGroup>
+</div>
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+    Quick start
+  </h2>
+  <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
+    Get up and running with decoders in minutes
+  </p>
 
-## Create beautiful pages
+  <Steps>
+    <Step title="Install the package">
+      Install decoders using your preferred package manager:
 
-Everything you need to create world-class documentation.
+      <CodeGroup>
+      ```bash npm
+      npm install decoders
+      ```
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+      ```bash yarn
+      yarn add decoders
+      ```
 
-## Need inspiration?
+      ```bash pnpm
+      pnpm add decoders
+      ```
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+      ```bash bun
+      bun add decoders
+      ```
+      </CodeGroup>
+
+      <Note>
+        Make sure you have `"strict": true` in your `tsconfig.json` for proper type inference.
+      </Note>
+    </Step>
+
+    <Step title="Import and create a decoder">
+      Define your data structure using decoder functions:
+
+      ```typescript
+      import { object, string, number, optional, array } from 'decoders';
+
+      const userDecoder = object({
+        id: number,
+        name: string,
+        email: optional(string),
+        roles: array(string),
+      });
+      ```
+
+      The decoder describes the shape and types of the data you expect.
+    </Step>
+
+    <Step title="Validate untrusted data">
+      Use `.verify()` to validate data and get type-safe results:
+
+      ```typescript
+      // Data from external source (API, user input, etc.)
+      const externalData = {
+        id: 123,
+        name: 'Alice',
+        roles: ['admin', 'user'],
+      };
+
+      // Validate and get type-safe result
+      const user = userDecoder.verify(externalData);
+      // TypeScript knows: { id: number; name: string; email?: string; roles: string[] }
+
+      console.log(user.name); // 'Alice'
+      ```
+
+      If validation fails, `.verify()` throws an error with a detailed message.
+    </Step>
+
+    <Step title="Handle validation errors">
+      For non-throwing validation, use `.decode()` to get a result object:
+
+      ```typescript
+      const result = userDecoder.decode(externalData);
+
+      if (result.ok) {
+        console.log('Valid user:', result.value);
+      } else {
+        console.error('Validation failed:', result.error);
+      }
+      ```
+
+      The result object follows a discriminated union pattern for safe error handling.
+    </Step>
+  </Steps>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+    Explore by topic
+  </h2>
+  <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
+    Deep dive into specific features and use cases
+  </p>
+
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <a href="/guides/object-validation" className="group block rounded-2xl border border-gray-200 dark:border-[#27272a] hover:border-[#3B82F6] dark:hover:border-[#3B82F6] overflow-hidden transition-colors no-underline">
+      <div className="p-6 bg-white dark:bg-[#1a1d27]">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-lg bg-[#3B82F6]/10 flex items-center justify-center">
+            <svg className="w-5 h-5 text-[#3B82F6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Object validation</h3>
+        </div>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          Validate complex nested objects with precise control over required and optional fields
+        </p>
+        <div className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-400 group-hover:text-[#3B82F6] transition-colors">
+          Learn more
+          <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+
+    <a href="/guides/transformations" className="group block rounded-2xl border border-gray-200 dark:border-[#27272a] hover:border-[#3B82F6] dark:hover:border-[#3B82F6] overflow-hidden transition-colors no-underline">
+      <div className="p-6 bg-white dark:bg-[#1a1d27]">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-lg bg-[#3B82F6]/10 flex items-center justify-center">
+            <svg className="w-5 h-5 text-[#3B82F6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Transformations</h3>
+        </div>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          Transform validated data on the fly with the .transform() method for data normalization
+        </p>
+        <div className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-400 group-hover:text-[#3B82F6] transition-colors">
+          Learn more
+          <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+
+    <a href="/guides/custom-decoders" className="group block rounded-2xl border border-gray-200 dark:border-[#27272a] hover:border-[#3B82F6] dark:hover:border-[#3B82F6] overflow-hidden transition-colors no-underline">
+      <div className="p-6 bg-white dark:bg-[#1a1d27]">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-lg bg-[#3B82F6]/10 flex items-center justify-center">
+            <svg className="w-5 h-5 text-[#3B82F6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Custom decoders</h3>
+        </div>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          Build your own decoders for domain-specific types and validation logic
+        </p>
+        <div className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-400 group-hover:text-[#3B82F6] transition-colors">
+          Learn more
+          <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+
+    <a href="/api/unions/tagged-union" className="group block rounded-2xl border border-gray-200 dark:border-[#27272a] hover:border-[#3B82F6] dark:hover:border-[#3B82F6] overflow-hidden transition-colors no-underline">
+      <div className="p-6 bg-white dark:bg-[#1a1d27]">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-lg bg-[#3B82F6]/10 flex items-center justify-center">
+            <svg className="w-5 h-5 text-[#3B82F6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Tagged unions</h3>
+        </div>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          Discriminated unions for type-safe handling of polymorphic data structures
+        </p>
+        <div className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-400 group-hover:text-[#3B82F6] transition-colors">
+          Learn more
+          <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+    Resources
+  </h2>
+  <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
+    Additional resources to help you get the most out of decoders
+  </p>
+
+  <CardGroup cols={2}>
+    <Card title="GitHub repository" icon="github" href="https://github.com/nvie/decoders">
+      View the source code, report issues, and contribute to the project
+    </Card>
+    <Card title="Migration guide" icon="arrow-right-arrow-left" href="/migration/migrating-to-v2">
+      Upgrading from v1? Learn how to migrate your existing code to v2
+    </Card>
+  </CardGroup>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="rounded-2xl bg-gradient-to-br from-[#3B82F6] to-[#2563eb] p-8 sm:p-12 text-center">
+    <h2 className="text-3xl font-bold text-white mb-4">
+      Ready to build type-safe applications?
+    </h2>
+    <p className="text-lg text-gray-100 mb-8 max-w-2xl mx-auto">
+      Get started with decoders and add runtime validation to your TypeScript projects today
+    </p>
+    <div className="flex flex-wrap gap-4 justify-center">
+      <a 
+        href="/quickstart" 
+        className="inline-flex items-center px-6 py-3 rounded-lg bg-white text-[#3B82F6] font-semibold hover:bg-gray-100 transition-colors no-underline"
+      >
+        Get started
+      </a>
+      <a 
+        href="/introduction" 
+        className="inline-flex items-center px-6 py-3 rounded-lg border-2 border-white/30 bg-white/10 text-white font-semibold hover:bg-white/20 hover:border-white/50 transition-colors no-underline"
+      >
+        Learn more
+      </a>
+    </div>
+  </div>
+</div>

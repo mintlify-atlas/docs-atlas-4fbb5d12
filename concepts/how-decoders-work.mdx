@@ -1,0 +1,204 @@
+---
+title: How Decoders Work
+description: Learn the fundamental concepts behind decoders, including the Decoder class, execution model, and the Result type.
+---
+
+Decoders is a validation library that helps you safely transform untrusted data into type-safe TypeScript values. This page explains the core concepts and execution model.
+
+## The Decoder Class
+
+At the heart of the library is the `Decoder<T>` interface. A decoder is an object that knows how to validate and transform unknown input data into a specific type `T`.
+
+Every decoder provides three main methods for validation:
+
+### `.decode()` - Safe Validation
+
+```typescript
+import { string, number } from 'decoders';
+
+const result = string.decode('hello');
+// result: DecodeResult<string> = { ok: true, value: 'hello' }
+
+const failed = number.decode('not a number');
+// failed: DecodeResult<number> = { ok: false, error: Annotation }
+```
+
+The `.decode()` method **never throws**. It always returns a `Result<T, Annotation>` type that explicitly represents success or failure.
+
+### `.verify()` - Throwing Validation
+
+```typescript
+import { string } from 'decoders';
+
+const value = string.verify('hello');
+// value: string = 'hello'
+
+try {
+  string.verify(123);
+} catch (error) {
+  // Decoding error:
+  // 123
+  // ^^^ Must be string
+}
+```
+
+The `.verify()` method throws a `DecodingError` if validation fails. Use this when you want to fail fast and handle errors with try/catch.
+
+### `.value()` - Optional Validation
+
+```typescript
+import { string } from 'decoders';
+
+const value = string.value('hello');
+// value: string | undefined = 'hello'
+
+const invalid = string.value(123);
+// invalid: string | undefined = undefined
+```
+
+The `.value()` method returns the decoded value on success, or `undefined` on failure. Use this when you don't care about the error message.
+
+## The Result Type
+
+The `Result<T, E>` type is a discriminated union that represents either success or failure:
+
+```typescript
+type Ok<T> = {
+  readonly ok: true;
+  readonly value: T;
+  readonly error?: never;
+};
+
+type Err<E> = {
+  readonly ok: false;
+  readonly value?: never;
+  readonly error: E;
+};
+
+type Result<T, E> = Ok<T> | Err<E>;
+```
+
+You can discriminate between success and failure using the `ok` field:
+
+```typescript
+import { number } from 'decoders';
+
+const result = number.decode(42);
+
+if (result.ok) {
+  console.log(result.value); // TypeScript knows: number
+} else {
+  console.error(result.error); // TypeScript knows: Annotation
+}
+```
+
+When using decoders, `DecodeResult<T>` is an alias for `Result<T, Annotation>`.
+
+## Execution Model
+
+Decoders follow a simple execution model:
+
+1. **Input Reception**: The decoder receives untrusted data of type `unknown`
+2. **Validation**: The decoder checks if the data matches expected criteria
+3. **Transformation**: If valid, the decoder may transform the data (e.g., parsing strings to dates)
+4. **Result Construction**: The decoder returns either `ok(value)` or `err(annotation)`
+
+### Defining Custom Decoders
+
+You can create custom decoders using the `define()` function:
+
+```typescript
+import { define } from 'decoders';
+
+const positiveNumber = define<number>((blob, ok, err) => {
+  // First check if it's a number
+  if (typeof blob !== 'number') {
+    return err('Must be a number');
+  }
+  
+  // Then check if it's positive
+  if (blob <= 0) {
+    return err('Must be positive');
+  }
+  
+  // Accept the value
+  return ok(blob);
+});
+
+const result = positiveNumber.decode(42);
+// { ok: true, value: 42 }
+```
+
+The acceptance function receives three parameters:
+- `blob`: The untrusted input data
+- `ok`: A function to accept the value
+- `err`: A function to reject with an error message
+
+## Annotations
+
+When a decoder fails, it produces an `Annotation` object that captures:
+
+- The value that failed validation
+- An error message describing why it failed
+- For complex types (objects/arrays), annotations for nested failures
+
+Annotations come in four types:
+
+```typescript
+type Annotation =
+  | ScalarAnnotation    // For primitives (string, number, boolean, null, etc.)
+  | ObjectAnnotation    // For objects with field-level errors
+  | ArrayAnnotation     // For arrays with item-level errors
+  | OpaqueAnnotation    // For functions, classes, and other non-serializable values
+```
+
+This structured error information enables rich error formatting and precise error messages.
+
+## Formatters
+
+Decoders includes built-in formatters to display errors:
+
+```typescript
+import { object, string, number, formatInline, formatShort } from 'decoders';
+
+const userDecoder = object({
+  id: number,
+  name: string,
+});
+
+const result = userDecoder.decode({ id: '123', name: 'Alice' });
+
+if (!result.ok) {
+  // Inline format (default for .verify())
+  console.log(formatInline(result.error));
+  // {
+  //   id: "123",
+  //       ^^^^^ Must be number
+  //   name: "Alice",
+  // }
+  
+  // Short format (concise summaries)
+  console.log(formatShort(result.error));
+  // Value at key "id": Must be number
+}
+```
+
+You can pass a custom formatter to `.verify()`:
+
+```typescript
+import { formatShort } from 'decoders';
+
+try {
+  userDecoder.verify(invalidData, formatShort);
+} catch (error) {
+  // Error uses short format
+}
+```
+
+## Key Takeaways
+
+- Decoders validate untrusted data and provide type-safe outputs
+- Use `.decode()` for safe validation, `.verify()` for throwing validation
+- The `Result` type explicitly represents success/failure states
+- Custom decoders are defined using the `define()` function
+- Annotations capture detailed error information for helpful error messages

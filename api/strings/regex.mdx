@@ -1,0 +1,517 @@
+---
+title: regex
+description: Create custom string pattern validators with regular expressions
+---
+
+# regex
+
+Accepts and returns strings that match the given regular expression.
+
+## Type Signature
+
+```typescript
+function regex(regex: RegExp, msg: string): Decoder<string>
+```
+
+## Parameters
+
+- **regex**: `RegExp` - The regular expression pattern to test against
+- **msg**: `string` - The error message to display when validation fails
+
+## Usage
+
+```typescript
+import { regex } from 'decoders';
+
+const hexColor = regex(/^#[0-9a-f]{6}$/i, 'Must be hex color');
+
+hexColor.verify('#ff0000');  // ✓ '#ff0000'
+hexColor.verify('#ABC123');  // ✓ '#ABC123'
+hexColor.verify('red');      // ✗ Must be hex color
+hexColor.verify('#ff00');    // ✗ Must be hex color
+```
+
+## Examples
+
+### Phone Number
+
+```typescript
+const phoneNumber = regex(
+  /^\+?[1-9]\d{1,14}$/,
+  'Must be valid phone number',
+);
+
+phoneNumber.verify('+1234567890');  // ✓
+phoneNumber.verify('1234567890');   // ✓
+phoneNumber.verify('+123');         // ✓
+phoneNumber.verify('abc');          // ✗ Must be valid phone number
+```
+
+### Semantic Version
+
+```typescript
+const semver = regex(
+  /^\d+\.\d+\.\d+$/,
+  'Must be semantic version',
+);
+
+semver.verify('1.0.0');    // ✓
+semver.verify('2.4.11');   // ✓
+semver.verify('1.0');      // ✗ Must be semantic version
+semver.verify('v1.0.0');   // ✗ Must be semantic version
+```
+
+### Username
+
+```typescript
+const username = regex(
+  /^[a-z0-9_-]{3,16}$/i,
+  'Must be valid username (3-16 chars, alphanumeric, dash, underscore)',
+);
+
+username.verify('john_doe');     // ✓
+username.verify('user-123');     // ✓
+username.verify('ab');           // ✗ (too short)
+username.verify('user@name');    // ✗ (invalid char)
+```
+
+## Implementation
+
+```typescript
+export function regex(regex: RegExp, msg: string): Decoder<string> {
+  return string.refine((s) => regex.test(s), msg);
+}
+```
+
+Source: `src/strings.ts:35-37`
+
+## Built-in Regex Decoders
+
+Many string decoders are built using `regex()`:
+
+- [email](/api/strings/email) - Email addresses
+- [uuid](/api/strings/uuid) - UUIDs
+- [identifier](/api/strings/identifier) - Programming identifiers
+- [decimal](#decimal) - Decimal digit strings
+- [hexadecimal](#hexadecimal) - Hexadecimal digit strings
+- [nonEmptyString](#nonemptystring) - Non-empty strings
+
+---
+
+## startsWith
+
+Accepts and returns strings that start with the given prefix.
+
+### Type Signature
+
+```typescript
+function startsWith<P extends string>(prefix: P): Decoder<`${P}${string}`>
+```
+
+### Parameters
+
+- **prefix**: `string` - The required prefix
+
+### Usage
+
+```typescript
+import { startsWith } from 'decoders';
+
+const httpsOnly = startsWith('https://');
+
+httpsOnly.verify('https://example.com');  // ✓ 'https://example.com'
+httpsOnly.verify('http://example.com');   // ✗ Must start with 'https://'
+httpsOnly.verify('ftp://files.com');      // ✗ Must start with 'https://'
+```
+
+### Examples
+
+```typescript
+const apiRoute = startsWith('/api/');
+apiRoute.verify('/api/users');    // ✓
+apiRoute.verify('/api/posts');    // ✓
+apiRoute.verify('/users');        // ✗ Must start with '/api/'
+
+const testFile = startsWith('test_');
+testFile.verify('test_utils.py');  // ✓
+testFile.verify('utils.py');       // ✗ Must start with 'test_'
+```
+
+### Implementation
+
+```typescript
+export function startsWith<P extends string>(prefix: P): Decoder<`${P}${string}`> {
+  return string.refine(
+    (s): s is `${P}${string}` => s.startsWith(prefix),
+    `Must start with '${prefix}'`,
+  );
+}
+```
+
+Source: `src/strings.ts:42-47`
+
+---
+
+## endsWith
+
+Accepts and returns strings that end with the given suffix.
+
+### Type Signature
+
+```typescript
+function endsWith<S extends string>(suffix: S): Decoder<`${string}${S}`>
+```
+
+### Parameters
+
+- **suffix**: `string` - The required suffix
+
+### Usage
+
+```typescript
+import { endsWith } from 'decoders';
+
+const dotCom = endsWith('.com');
+
+dotCom.verify('example.com');    // ✓ 'example.com'
+dotCom.verify('google.com');     // ✓ 'google.com'
+dotCom.verify('example.org');    // ✗ Must end with '.com'
+```
+
+### Examples
+
+```typescript
+const pythonFile = endsWith('.py');
+pythonFile.verify('script.py');      // ✓
+pythonFile.verify('main.py');        // ✓
+pythonFile.verify('script.js');      // ✗ Must end with '.py'
+
+const imageFile = endsWith('.png');
+imageFile.verify('photo.png');       // ✓
+imageFile.verify('photo.jpg');       // ✗ Must end with '.png'
+```
+
+### Implementation
+
+```typescript
+export function endsWith<S extends string>(suffix: S): Decoder<`${string}${S}`> {
+  return string.refine(
+    (s): s is `${string}${S}` => s.endsWith(suffix),
+    `Must end with '${suffix}'`,
+  );
+}
+```
+
+Source: `src/strings.ts:52-57`
+
+---
+
+## nonEmptyString
+
+Like `string`, but will reject the empty string or strings containing only whitespace.
+
+### Type Signature
+
+```typescript
+const nonEmptyString: Decoder<string>
+```
+
+### Validation Pattern
+
+Must contain at least one non-whitespace character.
+
+Regex pattern:
+```regex
+/\S/
+```
+
+### Valid Inputs
+
+```typescript
+import { nonEmptyString } from 'decoders';
+
+nonEmptyString.verify('hello');        // ✓ 'hello'
+nonEmptyString.verify('a');            // ✓ 'a'
+nonEmptyString.verify(' text ');       // ✓ ' text '
+nonEmptyString.verify('\thello');      // ✓ '\thello'
+```
+
+### Invalid Inputs
+
+```typescript
+nonEmptyString.verify('');             // ✗ Must be non-empty string
+nonEmptyString.verify('   ');          // ✗ Must be non-empty string
+nonEmptyString.verify('\t\n  ');       // ✗ Must be non-empty string
+nonEmptyString.verify(123);            // ✗ Must be string
+```
+
+### Error Message
+
+When validation fails: `"Must be non-empty string"`
+
+### Implementation
+
+```typescript
+export const nonEmptyString: Decoder<string> = regex(/\S/, 'Must be non-empty string');
+```
+
+Source: `src/strings.ts:30`
+
+---
+
+## nanoid
+
+Accepts and returns [nanoid](https://zelark.github.io/nano-id-cc) string values.
+
+Assumes the default nanoid alphabet. If you're using a custom alphabet, use `regex()` instead.
+
+### Type Signature
+
+```typescript
+function nanoid(options?: SizeOptions): Decoder<string>
+```
+
+### Parameters
+
+- **options**: `SizeOptions` (optional) - Size constraints
+  - `size?: number` - Exact size (default: 21)
+  - `min?: number` - Minimum size
+  - `max?: number` - Maximum size
+
+### Validation Pattern
+
+Regex pattern:
+```regex
+/^[a-z0-9_-]+$/i
+```
+
+Default size: 21 characters
+
+### Usage
+
+```typescript
+import { nanoid } from 'decoders';
+
+// Default: exactly 21 characters
+const defaultNano = nanoid();
+defaultNano.verify('V1StGXR8_Z5jdHi6B-myT');  // ✓
+defaultNano.verify('short');                   // ✗ (wrong size)
+
+// Custom size
+const shortNano = nanoid({ size: 10 });
+shortNano.verify('V1StGXR8_Z');  // ✓
+shortNano.verify('short');        // ✗ (wrong size)
+
+// Size range
+const flexNano = nanoid({ min: 10, max: 25 });
+flexNano.verify('V1StGXR8_Z');                // ✓ (10 chars)
+flexNano.verify('V1StGXR8_Z5jdHi6B-myT');     // ✓ (21 chars)
+flexNano.verify('short');                      // ✗ (too short)
+```
+
+### Valid Inputs
+
+```typescript
+nanoid().verify('V1StGXR8_Z5jdHi6B-myT');     // ✓
+nanoid().verify('AbCd1234-_eFgH5678iJ');      // ✓
+nanoid({ size: 8 }).verify('a1b2-c3d');       // ✓
+```
+
+### Invalid Inputs
+
+```typescript
+nanoid().verify('too-short');                 // ✗ (wrong size)
+nanoid().verify('has spaces in it!!!!!!');    // ✗ (invalid chars)
+nanoid().verify('123e4567-e89b-12d3-a456');   // ✗ (wrong size)
+nanoid({ size: 10 }).verify('12345');         // ✗ (too short)
+```
+
+### Implementation
+
+```typescript
+export function nanoid(options?: SizeOptions): Decoder<string> {
+  return sized(regex(/^[a-z0-9_-]+$/i, 'Must be nano ID'), options ?? { size: 21 });
+}
+```
+
+Source: `src/strings.ts:108-110`
+
+---
+
+## decimal
+
+Accepts and returns strings with decimal digits only (base-10).
+
+To convert these to numbers, use the [numeric](#numeric) decoder.
+
+### Type Signature
+
+```typescript
+const decimal: Decoder<string>
+```
+
+### Validation Pattern
+
+Regex pattern:
+```regex
+/^[0-9]+$/
+```
+
+Must contain only digits 0-9, at least one digit required.
+
+### Valid Inputs
+
+```typescript
+import { decimal } from 'decoders';
+
+decimal.verify('123');         // ✓ '123'
+decimal.verify('0');           // ✓ '0'
+decimal.verify('999999999');   // ✓ '999999999'
+```
+
+### Invalid Inputs
+
+```typescript
+decimal.verify('12.34');       // ✗ Must only contain digits
+decimal.verify('-123');        // ✗ Must only contain digits
+decimal.verify('1,234');       // ✗ Must only contain digits
+decimal.verify('0x1a');        // ✗ Must only contain digits
+decimal.verify('abc');         // ✗ Must only contain digits
+decimal.verify('');            // ✗ Must only contain digits
+decimal.verify(123);           // ✗ Must be string
+```
+
+### Error Message
+
+When validation fails: `"Must only contain digits"`
+
+### Implementation
+
+```typescript
+export const decimal: Decoder<string> = regex(/^[0-9]+$/, 'Must only contain digits');
+```
+
+Source: `src/strings.ts:144`
+
+### Related Decoders
+
+- [numeric](#numeric) - Parse decimal strings as numbers
+- [hexadecimal](#hexadecimal) - Validate hexadecimal strings
+
+---
+
+## hexadecimal
+
+Accepts and returns strings with hexadecimal digits only (base-16).
+
+### Type Signature
+
+```typescript
+const hexadecimal: Decoder<string>
+```
+
+### Validation Pattern
+
+Regex pattern:
+```regex
+/^[0-9a-f]+$/i
+```
+
+Must contain only hex digits (0-9, a-f, A-F), at least one digit required. Case-insensitive.
+
+### Valid Inputs
+
+```typescript
+import { hexadecimal } from 'decoders';
+
+hexadecimal.verify('1a2b3c');      // ✓ '1a2b3c'
+hexadecimal.verify('DEADBEEF');    // ✓ 'DEADBEEF'
+hexadecimal.verify('0');           // ✓ '0'
+hexadecimal.verify('ff00aa');      // ✓ 'ff00aa'
+hexadecimal.verify('123ABC');      // ✓ '123ABC'
+```
+
+### Invalid Inputs
+
+```typescript
+hexadecimal.verify('0x1a2b');      // ✗ Must only contain hexadecimal digits (prefix)
+hexadecimal.verify('gg1234');      // ✗ Must only contain hexadecimal digits
+hexadecimal.verify('12-34');       // ✗ Must only contain hexadecimal digits
+hexadecimal.verify('');            // ✗ Must only contain hexadecimal digits
+hexadecimal.verify(255);           // ✗ Must be string
+```
+
+### Error Message
+
+When validation fails: `"Must only contain hexadecimal digits"`
+
+### Implementation
+
+```typescript
+export const hexadecimal: Decoder<string> = regex(
+  /^[0-9a-f]+$/i,
+  'Must only contain hexadecimal digits',
+);
+```
+
+Source: `src/strings.ts:149-152`
+
+### Related Decoders
+
+- [decimal](#decimal) - Validate decimal digit strings
+- [regex](#regex) - Create custom pattern validators
+
+---
+
+## numeric
+
+Accepts valid numerical strings (in base-10) and returns them as a number.
+
+To only accept numerical strings and keep them as string values, use the [decimal](#decimal) decoder.
+
+### Type Signature
+
+```typescript
+const numeric: Decoder<number>
+```
+
+### Validation
+
+First validates the string contains only decimal digits using [decimal](#decimal), then transforms to a number.
+
+### Valid Inputs
+
+```typescript
+import { numeric } from 'decoders';
+
+numeric.verify('123');         // ✓ 123
+numeric.verify('0');           // ✓ 0
+numeric.verify('999999999');   // ✓ 999999999
+```
+
+### Invalid Inputs
+
+```typescript
+numeric.verify('12.34');       // ✗ Must only contain digits
+numeric.verify('-123');        // ✗ Must only contain digits
+numeric.verify('1,234');       // ✗ Must only contain digits
+numeric.verify('abc');         // ✗ Must only contain digits
+numeric.verify(123);           // ✗ Must be string
+```
+
+### Error Message
+
+When validation fails: `"Must only contain digits"`
+
+### Implementation
+
+```typescript
+export const numeric: Decoder<number> = decimal.transform(Number);
+```
+
+Source: `src/strings.ts:159`
+
+### Related Decoders
+
+- [decimal](#decimal) - Validate decimal strings (returns string)
+- number - Accept actual number values (not strings)

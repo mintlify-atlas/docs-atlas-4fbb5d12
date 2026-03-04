@@ -1,0 +1,205 @@
+---
+title: constant
+description: Validate exact literal values
+---
+
+## Overview
+
+The `constant()` decoder accepts only a specific literal value and rejects everything else. It's useful for validating exact matches against strings, numbers, booleans, null, undefined, or symbols.
+
+## Basic Usage
+
+```typescript
+import { constant } from 'decoders';
+
+const statusDecoder = constant('active');
+
+const result = statusDecoder.verify('active');
+// Type: 'active'
+// Result: 'active'
+
+statusDecoder.verify('inactive'); // Error: Must be "active"
+statusDecoder.verify('ACTIVE'); // Error: Must be "active"
+```
+
+## Type Signature
+
+```typescript
+function constant<C extends Scalar>(value: C): Decoder<C>;
+```
+
+Where `Scalar` is `string | number | boolean | null | undefined | symbol`.
+
+## Parameters
+
+<ParamField path="value" type="Scalar" required>
+  The exact value that must be matched. Can be a string, number, boolean, null, undefined, or symbol.
+</ParamField>
+
+## Return Value
+
+Returns a `Decoder<C>` that only accepts the exact specified value.
+
+## Examples
+
+### String literals
+
+```typescript
+import { constant } from 'decoders';
+
+const apiVersionDecoder = constant('v2');
+
+const version = apiVersionDecoder.verify('v2');
+// Type: 'v2'
+```
+
+### Number literals
+
+```typescript
+import { constant } from 'decoders';
+
+const magicNumberDecoder = constant(42);
+
+const result = magicNumberDecoder.verify(42);
+// Type: 42
+
+magicNumberDecoder.verify(43); // Error: Must be 42
+```
+
+### Boolean literals
+
+```typescript
+import { constant } from 'decoders';
+
+const trueDecoder = constant(true);
+
+const result = trueDecoder.verify(true);
+// Type: true
+
+trueDecoder.verify(false); // Error: Must be true
+```
+
+### Null and undefined
+
+```typescript
+import { constant } from 'decoders';
+
+// Validate null
+const nullDecoder = constant(null);
+nullDecoder.verify(null); // OK
+nullDecoder.verify(undefined); // Error
+
+// Validate undefined
+const undefinedDecoder = constant(undefined);
+undefinedDecoder.verify(undefined); // OK
+undefinedDecoder.verify(null); // Error
+```
+
+<Note>
+  The library provides `null_` and `undefined_` as pre-built decoders for these common cases:
+  
+  ```typescript
+  import { null_, undefined_ } from 'decoders';
+  
+  null_.verify(null); // OK
+  undefined_.verify(undefined); // OK
+  ```
+</Note>
+
+### In discriminated unions
+
+```typescript
+import { constant, object, string, number, either } from 'decoders';
+
+const successDecoder = object({
+  status: constant('success'),
+  data: string,
+});
+
+const errorDecoder = object({
+  status: constant('error'),
+  code: number,
+});
+
+const responseDecoder = either(successDecoder, errorDecoder);
+
+const response = responseDecoder.verify({
+  status: 'success',
+  data: 'Hello',
+});
+// Type: { status: 'success'; data: string } | { status: 'error'; code: number }
+```
+
+### With oneOf for multiple constants
+
+```typescript
+import { constant, oneOf } from 'decoders';
+
+// Instead of multiple constant decoders with either:
+const statusDecoder = oneOf([
+  constant('draft'),
+  constant('published'),
+  constant('archived'),
+]);
+
+// More concise: use oneOf with string array directly
+const statusDecoder2 = oneOf(['draft', 'published', 'archived']);
+
+const status = statusDecoder.verify('published');
+// Type: 'draft' | 'published' | 'archived'
+```
+
+## Error Messages
+
+The `constant()` decoder provides clear error messages when validation fails:
+
+```typescript
+import { constant } from 'decoders';
+
+const decoder = constant('expected');
+
+try {
+  decoder.verify('actual');
+} catch (error) {
+  console.error(error.message);
+  // Must be "expected"
+}
+```
+
+For symbols, the error message uses `String()` conversion:
+
+```typescript
+const sym = Symbol('mySymbol');
+const decoder = constant(sym);
+
+try {
+  decoder.verify(Symbol('other'));
+} catch (error) {
+  console.error(error.message);
+  // Must be Symbol(mySymbol)
+}
+```
+
+## Type Inference
+
+TypeScript correctly infers literal types from `constant()` decoders:
+
+```typescript
+import { constant } from 'decoders';
+
+const decoder = constant('hello');
+type InferredType = ReturnType<typeof decoder.verify>;
+// Type: 'hello' (not string)
+```
+
+## Related Decoders
+
+- [`always`](/api/utilities/always) - Ignores input and always returns a specific value
+- [`oneOf`](/api/unions/oneOf) - Accepts one of several constant values
+- [`boolean`](/api/primitives/boolean) - Accepts any boolean (true or false)
+- [`string`](/api/primitives/string) - Accepts any string value
+
+## See Also
+
+- [Tagged unions guide](/api/unions/tagged-union)
+- [Basic decoders guide](/guides/basic-decoders)

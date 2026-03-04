@@ -1,0 +1,282 @@
+---
+title: instanceOf
+description: Validate class instances
+---
+
+## Overview
+
+The `instanceOf()` decoder validates that a value is an instance of a specific class using JavaScript's `instanceof` operator. This is useful for validating built-in types like `Date`, `Error`, `RegExp`, or custom classes.
+
+## Basic Usage
+
+```typescript
+import { instanceOf } from 'decoders';
+
+const dateDecoder = instanceOf(Date);
+
+const date = dateDecoder.verify(new Date());
+// Type: Date
+// Result: Date instance
+
+dateDecoder.verify('2024-01-01'); // Error: Must be Date instance
+dateDecoder.verify(1704067200000); // Error: Must be Date instance
+```
+
+## Type Signature
+
+```typescript
+function instanceOf<K extends Klass<any>>(klass: K): Decoder<Instance<K>>;
+
+interface Klass<T> extends Function {
+  new (...args: readonly any[]): T;
+}
+
+type Instance<K> = K extends Klass<infer T> ? T : never;
+```
+
+## Parameters
+
+<ParamField path="klass" type="Class constructor" required>
+  The class constructor to check against. Must be a class that can be used with the `instanceof` operator.
+</ParamField>
+
+## Return Value
+
+Returns a `Decoder<T>` where `T` is the instance type of the provided class.
+
+## Examples
+
+### Date validation
+
+```typescript
+import { instanceOf, object, string } from 'decoders';
+
+const eventDecoder = object({
+  name: string,
+  createdAt: instanceOf(Date),
+});
+
+const event = eventDecoder.verify({
+  name: 'Conference',
+  createdAt: new Date('2024-03-15'),
+});
+// Type: { name: string; createdAt: Date }
+
+eventDecoder.verify({
+  name: 'Conference',
+  createdAt: '2024-03-15', // Error: Must be Date instance
+});
+```
+
+### Error instances
+
+```typescript
+import { instanceOf } from 'decoders';
+
+const errorDecoder = instanceOf(Error);
+
+const error = errorDecoder.verify(new Error('Something went wrong'));
+// Type: Error
+
+const typeError = errorDecoder.verify(new TypeError('Wrong type'));
+// Type: Error (also works with subclasses)
+
+errorDecoder.verify({ message: 'Not an error' }); // Error: Must be Error instance
+```
+
+### RegExp validation
+
+```typescript
+import { instanceOf } from 'decoders';
+
+const regexDecoder = instanceOf(RegExp);
+
+const pattern = regexDecoder.verify(/[a-z]+/i);
+// Type: RegExp
+
+const pattern2 = regexDecoder.verify(new RegExp('[0-9]+'));
+// Type: RegExp
+
+regexDecoder.verify('[a-z]+'); // Error: Must be RegExp instance
+```
+
+### Custom classes
+
+```typescript
+import { instanceOf, object, string, number } from 'decoders';
+
+class User {
+  constructor(
+    public id: number,
+    public name: string
+  ) {}
+
+  greet() {
+    return `Hello, ${this.name}!`;
+  }
+}
+
+const userDecoder = instanceOf(User);
+
+const user = userDecoder.verify(new User(1, 'Alice'));
+// Type: User
+
+user.greet(); // OK: 'Hello, Alice!'
+
+userDecoder.verify({ id: 1, name: 'Alice' }); // Error: Must be User instance
+```
+
+### Map and Set validation
+
+```typescript
+import { instanceOf } from 'decoders';
+
+const mapDecoder = instanceOf(Map);
+const setDecoder = instanceOf(Set);
+
+const map = mapDecoder.verify(new Map([['a', 1], ['b', 2]]));
+// Type: Map<any, any>
+
+const set = setDecoder.verify(new Set([1, 2, 3]));
+// Type: Set<any>
+
+mapDecoder.verify({ a: 1, b: 2 }); // Error: Must be Map instance
+setDecoder.verify([1, 2, 3]); // Error: Must be Set instance
+```
+
+### With inheritance
+
+```typescript
+import { instanceOf } from 'decoders';
+
+class Animal {
+  constructor(public name: string) {}
+}
+
+class Dog extends Animal {
+  bark() {
+    return 'Woof!';
+  }
+}
+
+const animalDecoder = instanceOf(Animal);
+
+// Dog instances are also Animal instances
+const dog = animalDecoder.verify(new Dog('Rex'));
+// Type: Animal
+
+const animal = animalDecoder.verify(new Animal('Generic'));
+// Type: Animal
+
+animalDecoder.verify({ name: 'Not an animal' }); // Error
+```
+
+### Array-like objects
+
+```typescript
+import { instanceOf } from 'decoders';
+
+const arrayDecoder = instanceOf(Array);
+
+const arr = arrayDecoder.verify([1, 2, 3]);
+// Type: any[]
+
+const arr2 = arrayDecoder.verify(new Array(5));
+// Type: any[]
+
+arrayDecoder.verify({ 0: 'a', 1: 'b', length: 2 }); // Error: Not an Array instance
+```
+
+## Error Messages
+
+The `instanceOf()` decoder provides clear error messages using the class name:
+
+```typescript
+import { instanceOf } from 'decoders';
+
+const dateDecoder = instanceOf(Date);
+
+try {
+  dateDecoder.verify('2024-01-01');
+} catch (error) {
+  console.error(error.message);
+  // Must be Date instance
+}
+
+class CustomClass {}
+const customDecoder = instanceOf(CustomClass);
+
+try {
+  customDecoder.verify({});
+} catch (error) {
+  console.error(error.message);
+  // Must be CustomClass instance
+}
+```
+
+## Type Inference
+
+TypeScript correctly infers the instance type:
+
+```typescript
+import { instanceOf } from 'decoders';
+
+class MyClass {
+  method() {}
+}
+
+const decoder = instanceOf(MyClass);
+type InferredType = ReturnType<typeof decoder.verify>;
+// Type: MyClass
+
+const instance = decoder.verify(new MyClass());
+instance.method(); // OK: TypeScript knows about the method
+```
+
+## Caveats
+
+<Warning>
+  The `instanceof` operator has limitations:
+  
+  - It doesn't work across different JavaScript execution contexts (e.g., iframes)
+  - It only checks the prototype chain, not the actual structure
+  - Primitives are not instances: `"hello" instanceof String` is `false`
+  
+  ```typescript
+  // These are NOT instances
+  instanceOf(String).verify('hello'); // Error
+  instanceOf(Number).verify(42); // Error
+  instanceOf(Boolean).verify(true); // Error
+  
+  // These ARE instances
+  instanceOf(String).verify(new String('hello')); // OK (but unusual)
+  instanceOf(Number).verify(new Number(42)); // OK (but unusual)
+  ```
+</Warning>
+
+## Use Cases
+
+1. **Validating Date objects** from JSON parsing with custom revivers
+2. **Checking Error instances** in error handling code
+3. **Validating custom class instances** from serialized data
+4. **Type guarding** for polymorphic class hierarchies
+5. **API boundaries** where classes are passed between modules
+
+## Comparison with Other Validators
+
+| Check | Code | Accepts |
+|-------|------|----------|
+| Instance check | `instanceOf(Date)` | `new Date()` |
+| Type check | `date` decoder | ISO date strings (converted) |
+| Duck typing | `object({ getTime: ... })` | Any object with matching shape |
+
+## Related Decoders
+
+- [`date`](/api/primitives/date) - Parses and validates date strings
+- [`object`](/api/objects/object) - Validates object structure
+- [`unknown`](/api/utilities/unknown) - Accepts any value
+
+## See Also
+
+- [MDN: instanceof operator](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/instanceof)
+- [Custom decoders guide](/guides/custom-decoders)

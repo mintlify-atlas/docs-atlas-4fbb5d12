@@ -1,0 +1,158 @@
+---
+title: nullish
+---
+
+Accepts whatever the given decoder accepts, or `null`, or `undefined`.
+
+## Signature
+
+```typescript
+function nullish<T>(decoder: Decoder<T>): Decoder<T | null | undefined>
+
+function nullish<T, C extends Scalar>(
+  decoder: Decoder<T>,
+  defaultValue: (() => C) | C
+): Decoder<NonNullable<T> | C>
+
+function nullish<T, V>(
+  decoder: Decoder<T>,
+  defaultValue: (() => V) | V
+): Decoder<NonNullable<T> | V>
+```
+
+## Type Inference
+
+`nullish()` creates a union type that includes both `null` and `undefined`:
+
+```typescript
+const decoder = nullish(string);
+// Type: Decoder<string | null | undefined>
+
+const result = decoder.verify('hello');
+// result is 'hello' | null | undefined
+```
+
+## Basic Usage
+
+```typescript
+import { nullish, string } from 'decoders';
+
+const decoder = nullish(string);
+
+decoder.verify('hello');     // 'hello'
+decoder.verify(null);        // null
+decoder.verify(undefined);   // undefined
+decoder.verify(42);          // DecodeError
+```
+
+## With Default Value
+
+If a default value is explicitly provided, return that instead in the `null` or `undefined` case:
+
+```typescript
+import { nullish, number } from 'decoders';
+
+const decoder = nullish(number, 0);
+
+decoder.verify(42);          // 42
+decoder.verify(null);        // 0
+decoder.verify(undefined);   // 0
+```
+
+### Lazy Default Values
+
+Default values can be functions that are evaluated lazily:
+
+```typescript
+import { nullish, array, string } from 'decoders';
+
+const decoder = nullish(array(string), () => []);
+
+decoder.verify(['a', 'b']);   // ['a', 'b']
+decoder.verify(null);         // []
+decoder.verify(undefined);    // []
+```
+
+## Union Behavior
+
+`nullish()` is implemented using `either(nullish_, decoder)` where `nullish_` is a special decoder for `null | undefined`:
+
+```typescript
+// These are equivalent:
+nullish(string)
+either(either(null_, undefined_), string)
+
+// Common use case: optional fields that might be null:
+const userDecoder = object({
+  name: string,
+  bio: nullish(string),
+});
+
+type User = DecoderType<typeof userDecoder>;
+// { name: string; bio: string | null | undefined }
+```
+
+## Comparing nullable, optional, and nullish
+
+```typescript
+import { nullable, optional, nullish, string } from 'decoders';
+
+// nullable: only null
+nullable(string).verify(null);        // ✓ null
+nullable(string).verify(undefined);   // ✗ DecodeError
+
+// optional: only undefined
+optional(string).verify(undefined);   // ✓ undefined
+optional(string).verify(null);        // ✗ DecodeError
+
+// nullish: both null and undefined
+nullish(string).verify(null);         // ✓ null
+nullish(string).verify(undefined);    // ✓ undefined
+```
+
+## Real-World Example
+
+```typescript
+import { nullish, object, string, number } from 'decoders';
+
+// API that returns null/undefined for missing optional data
+const productDecoder = object({
+  id: number,
+  name: string,
+  description: nullish(string, 'No description available'),
+  category: nullish(string),
+});
+
+productDecoder.verify({
+  id: 1,
+  name: 'Widget',
+  description: null,
+  category: undefined,
+});
+// Result: {
+//   id: 1,
+//   name: 'Widget',
+//   description: 'No description available',
+//   category: undefined
+// }
+```
+
+## Implementation
+
+Source: ~/workspace/source/src/basics.ts:71-82
+
+```typescript
+const nullish_: Decoder<null | undefined> = define((blob, ok, err) =>
+  blob == null ? ok(blob) : err('Must be undefined or null'),
+);
+
+export function nullish<T, V>(
+  decoder: Decoder<T>,
+  defaultValue?: (() => V) | V,
+): Decoder<T | V | null | undefined> {
+  const rv = either(nullish_, decoder);
+  return arguments.length >= 2
+    ? rv.transform((value) => value ?? lazyval(defaultValue as (() => V) | V))
+    : rv;
+}
+```

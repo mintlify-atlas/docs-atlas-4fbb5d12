@@ -1,0 +1,221 @@
+---
+title: unknown
+description: Accept any value without validation
+---
+
+## Overview
+
+The `unknown` decoder accepts anything and returns it unchanged. It provides no runtime validation but gives you a properly typed `unknown` value that you can refine later. This is useful when you don't know or don't care about the specific type of some data.
+
+## Basic Usage
+
+```typescript
+import { unknown } from 'decoders';
+
+const result = unknown.verify('hello');
+// Type: unknown
+// Result: 'hello'
+
+const result2 = unknown.verify({ foo: 'bar' });
+// Type: unknown
+// Result: { foo: 'bar' }
+
+const result3 = unknown.verify(null);
+// Type: unknown
+// Result: null
+```
+
+## Type Signature
+
+```typescript
+const unknown: Decoder<unknown>;
+```
+
+## Parameters
+
+None. `unknown` is a pre-built decoder instance, not a function.
+
+## Return Value
+
+Returns a `Decoder<unknown>` that accepts any input and returns it with type `unknown`.
+
+## Examples
+
+### Accepting arbitrary metadata
+
+```typescript
+import { object, string, number, unknown } from 'decoders';
+
+const eventDecoder = object({
+  type: string,
+  timestamp: number,
+  // Accept any metadata without validation
+  metadata: unknown,
+});
+
+const event = eventDecoder.verify({
+  type: 'user.login',
+  timestamp: 1234567890,
+  metadata: {
+    ip: '192.168.1.1',
+    userAgent: 'Mozilla/5.0...',
+    customData: [1, 2, 3],
+  },
+});
+// Type: { type: string; timestamp: number; metadata: unknown }
+
+// You need to refine the type before using metadata
+if (typeof event.metadata === 'object' && event.metadata !== null) {
+  // Now you can safely access properties
+}
+```
+
+### Partial validation
+
+```typescript
+import { object, string, unknown } from 'decoders';
+
+const messageDecoder = object({
+  id: string,
+  // We know there's a body, but don't care about its structure
+  body: unknown,
+});
+
+const message = messageDecoder.verify({
+  id: 'msg-123',
+  body: { text: 'Hello', format: 'plain' },
+});
+// Type: { id: string; body: unknown }
+```
+
+### Passthrough fields
+
+```typescript
+import { object, string, number, unknown } from 'decoders';
+
+const configDecoder = object({
+  apiKey: string,
+  timeout: number,
+  // Accept any additional options without validation
+  options: unknown,
+});
+
+const config = configDecoder.verify({
+  apiKey: 'secret',
+  timeout: 5000,
+  options: {
+    retries: 3,
+    backoff: 'exponential',
+    customSetting: true,
+  },
+});
+// The options are preserved but have type unknown
+```
+
+### With type guards
+
+```typescript
+import { unknown } from 'decoders';
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(item => typeof item === 'string');
+}
+
+const data = unknown.verify(['a', 'b', 'c']);
+// Type: unknown
+
+if (isStringArray(data)) {
+  // Type: string[]
+  data.forEach(item => console.log(item.toUpperCase()));
+}
+```
+
+## When to Use
+
+Use `unknown` when:
+
+- You're working with truly dynamic data where the structure is unpredictable
+- You want to defer validation to a later stage
+- You need to pass through data without modification
+- You're building generic utilities that work with any type
+- You want to accept plugin configurations or extension points
+
+<Note>
+  Prefer specific decoders when possible. `unknown` provides no runtime safety, so you're responsible for type-checking the data before using it.
+</Note>
+
+## Type Safety
+
+The `unknown` type in TypeScript is safer than `any` because it requires you to refine the type before using it:
+
+```typescript
+import { unknown } from 'decoders';
+
+const data = unknown.verify({ message: 'Hello' });
+
+// Error: Object is of type 'unknown'
+data.message;
+
+// Correct: refine the type first
+if (typeof data === 'object' && data !== null && 'message' in data) {
+  console.log((data as { message: unknown }).message);
+}
+
+// Or use a type guard
+function hasMessage(value: unknown): value is { message: string } {
+  return typeof value === 'object' && value !== null && 'message' in value;
+}
+
+if (hasMessage(data)) {
+  console.log(data.message.toUpperCase());
+}
+```
+
+## Alias: `anything`
+
+The `anything` decoder is an alias for `unknown`:
+
+```typescript
+import { anything } from 'decoders';
+
+const result = anything.verify('hello');
+// Type: unknown
+// Identical to: unknown.verify('hello')
+```
+
+## Comparison with Other Decoders
+
+| Decoder | Validation | Type | Use Case |
+|---------|-----------|------|----------|
+| `unknown` | None | `unknown` | Accept anything, refine later |
+| `string` | Must be string | `string` | Validate strings |
+| `number` | Must be number | `number` | Validate numbers |
+| `constant(x)` | Must equal x | Literal type | Validate exact values |
+| `always(x)` | None | Type of x | Ignore input, return x |
+
+## Error Handling
+
+The `unknown` decoder never fails validation:
+
+```typescript
+import { unknown } from 'decoders';
+
+// All of these succeed
+unknown.verify('string');
+unknown.verify(123);
+unknown.verify(null);
+unknown.verify(undefined);
+unknown.verify({ complex: { nested: ['structure'] } });
+unknown.verify(() => 'function');
+```
+
+## Related Decoders
+
+- [`always`](/api/utilities/always) - Ignore input and return a specific value
+- [`constant`](/api/utilities/constant) - Validate exact literal values
+- [`lazy`](/api/utilities/lazy) - Defer decoder evaluation for recursive types
+
+## See Also
+
+- [TypeScript: unknown type](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#the-unknown-type)
+- [Basic decoders guide](/guides/basic-decoders)

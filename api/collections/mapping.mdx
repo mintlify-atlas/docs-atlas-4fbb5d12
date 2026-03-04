@@ -1,0 +1,167 @@
+---
+title: mapping
+description: Validate objects and return ES6 Map instances
+---
+
+## Overview
+
+The `mapping()` decoder is similar to [`record()`](/api/collections/record), but returns the result as an ES6 `Map<string, T>` instead of a plain object. This is useful when you need Map-specific methods or want to maintain insertion order.
+
+## Basic Usage
+
+```typescript
+import { mapping, number } from 'decoders';
+
+const scoresDecoder = mapping(number);
+
+const result = scoresDecoder.verify({
+  alice: 95,
+  bob: 87,
+  charlie: 92,
+});
+// Type: Map<string, number>
+// Result: Map { 'alice' => 95, 'bob' => 87, 'charlie' => 92 }
+
+// Use Map methods
+result.get('alice'); // 95
+result.has('bob'); // true
+result.size; // 3
+```
+
+## Type Signature
+
+```typescript
+function mapping<T>(decoder: Decoder<T>): Decoder<Map<string, T>>;
+```
+
+## Parameters
+
+<ParamField path="decoder" type="Decoder<T>" required>
+  Decoder to validate each value in the object. The validated object is then converted to a Map.
+</ParamField>
+
+## Return Value
+
+Returns a `Decoder<Map<string, T>>` that validates objects and converts them to ES6 Map instances.
+
+## Examples
+
+### User preferences
+
+```typescript
+import { mapping, string } from 'decoders';
+
+const preferencesDecoder = mapping(string);
+
+const prefs = preferencesDecoder.verify({
+  theme: 'dark',
+  language: 'en',
+  timezone: 'UTC',
+});
+// Type: Map<string, string>
+
+prefs.forEach((value, key) => {
+  console.log(`${key}: ${value}`);
+});
+```
+
+### Complex value types
+
+```typescript
+import { mapping, object, string, number } from 'decoders';
+
+const productInventoryDecoder = mapping(
+  object({
+    name: string,
+    quantity: number,
+    price: number,
+  })
+);
+
+const inventory = productInventoryDecoder.verify({
+  'SKU-001': { name: 'Widget', quantity: 100, price: 9.99 },
+  'SKU-002': { name: 'Gadget', quantity: 50, price: 19.99 },
+});
+// Type: Map<string, { name: string; quantity: number; price: number }>
+
+// Access using Map methods
+const widget = inventory.get('SKU-001');
+```
+
+### Iterating over entries
+
+```typescript
+import { mapping, number } from 'decoders';
+
+const countersDecoder = mapping(number);
+
+const counters = countersDecoder.verify({
+  visits: 1523,
+  clicks: 432,
+  conversions: 89,
+});
+
+// Iterate using Map methods
+for (const [metric, count] of counters.entries()) {
+  console.log(`${metric}: ${count}`);
+}
+
+// Convert back to array
+const entries = Array.from(counters.entries());
+```
+
+## Implementation Details
+
+The `mapping()` decoder is built on top of `record()` and uses the `.transform()` method to convert the validated object to a Map:
+
+```typescript
+// Simplified implementation
+export function mapping<T>(decoder: Decoder<T>): Decoder<Map<string, T>> {
+  return record(decoder).transform((obj) => new Map(Object.entries(obj)));
+}
+```
+
+## When to Use
+
+Use `mapping()` instead of `record()` when:
+
+- You need Map-specific methods like `.has()`, `.get()`, `.set()`, `.delete()`
+- You want guaranteed iteration order (Maps maintain insertion order)
+- You're working with code that expects Map instances
+- You need better performance for frequent additions/deletions
+
+<Note>
+  If you just need a plain object with validated values, use [`record()`](/api/collections/record) instead. It's lighter weight and more common in TypeScript code.
+</Note>
+
+## Error Handling
+
+`mapping()` inherits error handling from `record()`, providing the same detailed error messages:
+
+```typescript
+import { mapping, number } from 'decoders';
+
+const decoder = mapping(number);
+
+try {
+  decoder.verify({
+    a: 1,
+    b: 'invalid', // Not a number
+    c: 3,
+  });
+} catch (error) {
+  console.error(error.message);
+  // Error includes the specific key that failed
+}
+```
+
+## Related Decoders
+
+- [`record`](/api/collections/record) - Returns a plain object `Record<string, T>`
+- [`setFromArray`](/api/collections/set) - Validates arrays and returns ES6 Set instances
+- [`object`](/api/objects/object) - For objects with known, fixed keys
+
+## See Also
+
+- [MDN: Map](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map)
+- [Object validation guide](/guides/object-validation)

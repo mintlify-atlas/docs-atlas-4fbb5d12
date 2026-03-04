@@ -1,0 +1,305 @@
+---
+title: inexact
+description: Decode objects with validated fields, passing through extra properties
+---
+
+## Signature
+
+```typescript
+function inexact<Ds extends Record<string, Decoder<unknown>>>(
+  decoders: Ds
+): Decoder<ObjectDecoderType<Ds> & Record<string, unknown>>
+```
+
+## Description
+
+Like [`object()`](/api/objects/object), but will **pass through** any extra fields on the input object unvalidated. These extra fields will be of `unknown` type statically.
+
+This decoder validates the specified fields while preserving all other fields in the output, allowing you to access them with proper type safety (as `unknown`).
+
+## Type Inference
+
+The return type includes both the validated fields and an index signature for extra fields:
+
+```typescript
+const userDecoder = inexact({
+  id: number,
+  username: string
+});
+
+// Inferred type:
+// {
+//   id: number;
+//   username: string;
+// } & Record<string, unknown>
+
+// Usage:
+const result = userDecoder.decode({
+  id: 123,
+  username: 'alice',
+  email: 'alice@example.com'
+});
+
+result.id;        // Type: number
+result.username;  // Type: string
+result.email;     // Type: unknown (needs type guard)
+```
+
+## Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `decoders` | `Record<string, Decoder<unknown>>` | An object mapping field names to their respective decoders |
+
+## Returns
+
+A `Decoder<ObjectDecoderType<Ds> & Record<string, unknown>>` that validates the specified fields and includes all extra fields as `unknown`.
+
+## Behavior
+
+- **Extra fields**: Passed through unvalidated (type: `unknown`)
+- **Missing required fields**: Causes decode failure
+- **Missing optional fields**: Allowed
+- **Invalid field values**: Causes decode failure with field-specific errors
+- **Validated fields**: Have their proper inferred types
+
+## Examples
+
+### Basic Usage
+
+```typescript
+import { inexact, string, number } from 'decoders';
+
+const personDecoder = inexact({
+  name: string,
+  age: number
+});
+
+const result = personDecoder.decode({
+  name: 'Alice',
+  age: 30,
+  email: 'alice@example.com',
+  isActive: true
+});
+
+// Result: 
+// {
+//   name: 'Alice',
+//   age: 30,
+//   email: 'alice@example.com',  // Passed through
+//   isActive: true                // Passed through
+// }
+
+result.name;      // Type: string ✓
+result.age;       // Type: number ✓
+result.email;     // Type: unknown (needs type guard)
+result.isActive;  // Type: unknown (needs type guard)
+```
+
+### Accessing Extra Fields Safely
+
+```typescript
+import { inexact, string, guard } from 'decoders';
+
+const decoder = inexact({
+  id: string,
+  required: string
+});
+
+const result = decoder.decode({
+  id: '123',
+  required: 'value',
+  extra: 'bonus'
+});
+
+// Type guard for extra fields
+if (typeof result.extra === 'string') {
+  console.log(result.extra.toUpperCase()); // Safe to use as string
+}
+
+// Or use a decoder to validate extra fields
+const emailGuard = guard(email);
+if ('email' in result && emailGuard(result.email)) {
+  console.log(`Email: ${result.email}`);
+}
+```
+
+### API Response with Metadata
+
+```typescript
+import { inexact, string, number, array } from 'decoders';
+
+// API might return extra metadata we want to preserve
+const apiResponseDecoder = inexact({
+  data: array(string),
+  status: string
+});
+
+const response = apiResponseDecoder.decode({
+  data: ['item1', 'item2'],
+  status: 'success',
+  requestId: 'req-123',      // Extra: request tracking
+  timestamp: 1234567890,     // Extra: response time
+  serverVersion: '2.1.0'     // Extra: API version
+});
+
+// Validated fields have proper types
+response.data;    // Type: string[]
+response.status;  // Type: string
+
+// Extra fields preserved as unknown
+response.requestId;      // Type: unknown
+response.timestamp;      // Type: unknown
+response.serverVersion;  // Type: unknown
+```
+
+### Partial Validation
+
+```typescript
+import { inexact, string, url } from 'decoders';
+
+// Validate critical fields, preserve everything else
+const configDecoder = inexact({
+  apiUrl: url,
+  apiKey: string
+});
+
+const config = configDecoder.decode({
+  apiUrl: 'https://api.example.com',
+  apiKey: 'secret-key-123',
+  
+  // These are passed through unvalidated
+  timeout: 5000,
+  retries: 3,
+  debug: true,
+  customHeaders: { 'X-Client': 'MyApp' }
+});
+
+// Critical fields are validated
+config.apiUrl;  // Type: string (validated as URL)
+config.apiKey;  // Type: string
+
+// Other fields are preserved but unvalidated
+config.timeout;       // Type: unknown
+config.customHeaders; // Type: unknown
+```
+
+### Nested Inexact Objects
+
+```typescript
+import { inexact, string } from 'decoders';
+
+const decoder = inexact({
+  name: string,
+  metadata: inexact({
+    version: string
+  })
+});
+
+const result = decoder.decode({
+  name: 'App',
+  extra1: 'top-level',
+  metadata: {
+    version: '1.0.0',
+    extra2: 'nested'
+  }
+});
+
+result.name;              // Type: string
+result.extra1;            // Type: unknown
+result.metadata.version;  // Type: string
+result.metadata.extra2;   // Type: unknown
+```
+
+### Handling Hard-Coded Keys
+
+```typescript
+import { inexact, string, constant } from 'decoders';
+
+const decoder = inexact({
+  type: constant('user'),
+  name: string
+});
+
+// Even if 'type' is missing from input, it's included in output
+const result = decoder.decode({
+  name: 'Alice',
+  age: 30
+});
+
+// Result includes all keys: validated, hard-coded, and extra
+result.type;  // Type: 'user'
+result.name;  // Type: string
+result.age;   // Type: unknown
+```
+
+## Error Messages
+
+Error messages are the same as `object()` since validation logic is identical:
+
+- **Missing required field**: `Missing key: 'fieldName'`
+- **Missing multiple fields**: `Missing keys: 'field1', 'field2'`
+- **Invalid field value**: Includes the nested decoder's error message
+- **Not an object**: `Must be an object`
+
+Extra fields **never** cause errors.
+
+## When to Use
+
+Use `inexact()` when:
+
+- Working with evolving APIs where new fields are regularly added
+- You need to preserve metadata or debug information
+- Validating only critical fields while keeping the rest
+- Processing responses that include extra context you might need
+- Building adapters that pass through unknown fields to other systems
+
+## When Not to Use
+
+Avoid `inexact()` when:
+
+- You need all fields to be validated (use `object()` with all decoders)
+- Extra fields should cause errors (use [`exact()`](/api/objects/exact))
+- You don't need the extra fields at all (use [`object()`](/api/objects/object) for simpler types)
+
+## Type Safety Notes
+
+Extra fields are typed as `unknown`, not `any`. This means:
+
+```typescript
+const result = inexact({ id: number }).decode({ 
+  id: 1, 
+  name: 'test' 
+});
+
+// Type error: unknown is not assignable to string
+// const str: string = result.name;
+
+// Must use type guard first
+if (typeof result.name === 'string') {
+  const str: string = result.name; // OK
+}
+```
+
+This ensures you can't accidentally use unvalidated data without proper checks.
+
+## Implementation Notes
+
+- Builds on top of `pojo` using `.pipe()`
+- Computes the union of all keys (validated + extra) from the input
+- Validates specified fields through `object()`
+- Merges validated fields with unvalidated extra fields
+- Handles hard-coded keys that aren't in the input
+- Only includes fields in output if their values are not `undefined`
+
+## Related Decoders
+
+- [`object`](/api/objects/object) - Like `inexact()` but discards extra fields
+- [`exact`](/api/objects/exact) - Like `object()` but rejects extra fields
+- [`pojo`](/api/primitives/pojo) - Accepts any plain object without validation
+
+## See Also
+
+- [Type guards](/guides/type-guards)
+- [Working with unknown types](/guides/unknown-types)
+- [API compatibility patterns](/guides/api-compatibility)

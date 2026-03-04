@@ -1,0 +1,135 @@
+---
+title: Basic Number Decoders
+description: Core decoders for validating number values
+---
+
+## number
+
+Accepts finite numbers (can be integer or float values). Values `NaN`, or positive and negative `Infinity` will get rejected.
+
+```typescript
+const number: Decoder<number>
+```
+
+### Validation Rules
+
+- Must be a JavaScript number type
+- Must be finite (rejects `NaN`, `Infinity`, and `-Infinity`)
+- Accepts both integers and floats
+- Accepts negative and positive numbers
+
+### Examples
+
+```typescript
+import { number } from 'decoders';
+
+const result1 = number.decode(42);        // ✓ Ok(42)
+const result2 = number.decode(-3.14);     // ✓ Ok(-3.14)
+const result3 = number.decode(0);         // ✓ Ok(0)
+const result4 = number.decode(NaN);       // ✗ Error: "Number must be finite"
+const result5 = number.decode(Infinity);  // ✗ Error: "Number must be finite"
+const result6 = number.decode("42");      // ✗ Error: "Must be number"
+```
+
+### Use Cases
+
+- General numeric values
+- Calculations and measurements
+- Coordinates and positions
+- Default choice for most number validations
+
+---
+
+## anyNumber
+
+Accepts any valid `number` value.
+
+This also accepts special values like `NaN` and `Infinity`. Unless you want to deliberately accept those, you'll likely want to use the `number` decoder instead.
+
+```typescript
+const anyNumber: Decoder<number>
+```
+
+### Validation Rules
+
+- Must be a JavaScript number type
+- Accepts `NaN`, `Infinity`, and `-Infinity`
+- Accepts all finite numbers
+
+### Examples
+
+```typescript
+import { anyNumber } from 'decoders';
+
+const result1 = anyNumber.decode(42);        // ✓ Ok(42)
+const result2 = anyNumber.decode(NaN);       // ✓ Ok(NaN)
+const result3 = anyNumber.decode(Infinity);  // ✓ Ok(Infinity)
+const result4 = anyNumber.decode(-Infinity); // ✓ Ok(-Infinity)
+const result5 = anyNumber.decode("42");      // ✗ Error: "Must be number"
+```
+
+### Use Cases
+
+- Mathematical operations that may produce `NaN` or `Infinity`
+- Serialization/deserialization where special values are valid
+- Low-level number processing
+
+---
+
+## numeric
+
+Accepts valid numerical strings (in base-10) and returns them as a number.
+
+To only accept numerical strings and keep them as string values, use the `decimal` decoder.
+
+```typescript
+const numeric: Decoder<number>
+```
+
+### Validation Rules
+
+- Must be a string type
+- Must contain only decimal digits (0-9)
+- Returns the parsed number value
+- Uses base-10 conversion
+
+### Examples
+
+```typescript
+import { numeric } from 'decoders';
+
+const result1 = numeric.decode("42");      // ✓ Ok(42)
+const result2 = numeric.decode("0");       // ✓ Ok(0)
+const result3 = numeric.decode("123");     // ✓ Ok(123)
+const result4 = numeric.decode("-42");     // ✗ Error: "Must only contain digits"
+const result5 = numeric.decode("3.14");    // ✗ Error: "Must only contain digits"
+const result6 = numeric.decode(42);        // ✗ Error (expects string input)
+```
+
+### Use Cases
+
+- Parsing numeric strings from forms
+- URL parameters that should be numbers
+- String-based API responses with numeric values
+- CSV or text file parsing
+
+### Related
+
+- `decimal` - Accepts numeric strings but keeps them as strings
+- `number` - For direct number values (not strings)
+
+---
+
+## Type Hierarchy
+
+The number decoders follow this hierarchy:
+
+```
+anyNumber (all number values including NaN, Infinity)
+  └── number (finite numbers only)
+       ├── integer (whole numbers)
+       │    └── positiveInteger (non-negative whole numbers)
+       └── positiveNumber (non-negative numbers)
+```
+
+Each level adds additional constraints on top of the previous level.

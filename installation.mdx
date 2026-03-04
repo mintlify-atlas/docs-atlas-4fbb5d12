@@ -1,0 +1,245 @@
+---
+title: Installation
+description: Install decoders and configure your TypeScript project
+---
+
+Get started with decoders in your TypeScript project.
+
+## Install the package
+
+Install decoders using your preferred package manager:
+
+<CodeGroup>
+```bash npm
+npm install decoders
+```
+
+```bash yarn
+yarn add decoders
+```
+
+```bash pnpm
+pnpm add decoders
+```
+
+```bash bun
+bun add decoders
+```
+</CodeGroup>
+
+## Requirements
+
+### TypeScript version
+
+Decoders requires TypeScript 4.5 or higher for proper type inference.
+
+### Strict mode
+
+<Warning>
+You must enable strict mode in your `tsconfig.json` for type inference to work correctly.
+</Warning>
+
+Set `"strict": true` in your TypeScript configuration:
+
+```json tsconfig.json
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler"
+  }
+}
+```
+
+Without strict mode, TypeScript will not properly infer types from decoder definitions, and you may lose type safety.
+
+## Platform support
+
+Decoders works in all modern JavaScript environments:
+
+<CardGroup cols={2}>
+  <Card title="Node.js" icon="node-js">
+    Node.js 20+ (earlier versions likely work but are not tested)
+  </Card>
+  <Card title="Browsers" icon="chrome">
+    All modern browsers with ES2020 support
+  </Card>
+  <Card title="Bun" icon="leaf">
+    Full support for Bun runtime
+  </Card>
+  <Card title="Deno" icon="deno">
+    Import from npm: `npm:decoders`
+  </Card>
+  <Card title="Cloudflare Workers" icon="cloud">
+    Fully compatible with Workers runtime
+  </Card>
+  <Card title="Edge runtimes" icon="bolt">
+    Vercel Edge, Netlify Edge, and other edge runtimes
+  </Card>
+</CardGroup>
+
+## Import styles
+
+Decoders supports both ESM and CommonJS imports.
+
+### ES Modules (recommended)
+
+```typescript
+import { object, string, number, array } from 'decoders';
+```
+
+### CommonJS
+
+```javascript
+const { object, string, number, array } = require('decoders');
+```
+
+### Deno
+
+```typescript
+import { object, string, number, array } from 'npm:decoders';
+```
+
+## Bundle size
+
+Decoders has zero dependencies and is optimized for tree-shaking:
+
+- **Minified:** ~4KB
+- **Gzipped:** ~1.5KB
+- **Tree-shakeable:** Only import what you use
+
+When you import specific decoders, bundlers like webpack, Rollup, or esbuild automatically include only the code you need.
+
+## TypeScript configuration
+
+For the best experience with decoders, we recommend these TypeScript settings:
+
+```json tsconfig.json
+{
+  "compilerOptions": {
+    // Required
+    "strict": true,
+    
+    // Recommended
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    
+    // Optional but helpful
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  }
+}
+```
+
+### Why strict mode is required
+
+Strict mode enables several TypeScript checks that are essential for proper type inference:
+
+- `strictNullChecks` - Required for optional/nullable type inference
+- `strictFunctionTypes` - Ensures decoder composition is type-safe
+- `noImplicitAny` - Prevents accidentally losing type information
+
+## Verify installation
+
+Create a test file to verify decoders is working correctly:
+
+```typescript test.ts
+import { object, string, number } from 'decoders';
+
+const userDecoder = object({
+  id: number,
+  name: string,
+});
+
+const result = userDecoder.decode({ id: 1, name: 'Alice' });
+
+if (result.ok) {
+  console.log('✓ Decoders is working!');
+  console.log('User:', result.value);
+} else {
+  console.log('✗ Validation failed:', result.error);
+}
+```
+
+Run the file:
+
+<CodeGroup>
+```bash Node.js
+node --import tsx test.ts
+```
+
+```bash Bun
+bun test.ts
+```
+
+```bash Deno
+deno run test.ts
+```
+</CodeGroup>
+
+You should see: `✓ Decoders is working!`
+
+## IDE support
+
+Decoders provides excellent IDE support through TypeScript:
+
+- **Type inference** - Hover over variables to see inferred types
+- **Auto-completion** - Get suggestions for decoder methods
+- **Type errors** - See errors inline as you type
+- **Go to definition** - Jump to decoder source code
+
+### VS Code
+
+For the best experience in VS Code:
+
+1. Install the TypeScript extension (included by default)
+2. Enable "TypeScript: Enable Prompt Use Workspace" in settings
+3. Use the workspace TypeScript version
+
+### Other editors
+
+Decoders works with any editor that supports TypeScript language server:
+
+- WebStorm / IntelliJ IDEA
+- Vim / Neovim with CoC or LSP
+- Emacs with Tide or LSP
+- Sublime Text with LSP-typescript
+
+## Troubleshooting
+
+### Types are not inferred correctly
+
+Make sure `"strict": true` is enabled in your `tsconfig.json`. Without strict mode, TypeScript cannot properly infer types from decoders.
+
+### Module not found error
+
+If you see `Cannot find module 'decoders'`:
+
+1. Make sure you installed the package: `npm install decoders`
+2. Check that `node_modules` exists in your project
+3. Restart your TypeScript server (VS Code: Cmd/Ctrl + Shift + P → "TypeScript: Restart TS Server")
+
+### Import errors in Deno
+
+Use the npm specifier:
+
+```typescript
+import { object, string } from 'npm:decoders';
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Build your first decoder in 5 minutes
+  </Card>
+  <Card title="Basic decoders" icon="shapes" href="/guides/basic-decoders">
+    Learn about all the built-in decoders
+  </Card>
+</CardGroup>

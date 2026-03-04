@@ -1,0 +1,207 @@
+---
+title: object
+description: Decode objects with validated fields, ignoring extra properties
+---
+
+## Signature
+
+```typescript
+function object<Ds extends Record<string, Decoder<unknown>>>(
+  decoders: Ds
+): Decoder<ObjectDecoderType<Ds>>
+```
+
+## Description
+
+Accepts objects with fields matching the given decoders. Extra fields that exist on the input object are **ignored** and will not be returned in the decoded result.
+
+This is the most permissive object decoder and is useful when you want to validate specific fields but don't care about extra properties in the input.
+
+## Type Inference
+
+The return type automatically infers the shape based on the decoder map:
+
+```typescript
+const userDecoder = object({
+  name: string,
+  age: number,
+  email: optional(string)
+});
+
+// Inferred type:
+// {
+//   name: string;
+//   age: number;
+//   email?: string | undefined;
+// }
+```
+
+### UndefinedToOptional
+
+Fields that can be `undefined` are automatically marked as optional with a `?` modifier:
+
+```typescript
+type User = {
+  name: string;
+  role: string | undefined;  // Contains undefined
+};
+
+// After UndefinedToOptional transformation:
+// {
+//   name: string;
+//   role?: string | undefined;  // Now optional
+// }
+```
+
+## Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `decoders` | `Record<string, Decoder<unknown>>` | An object mapping field names to their respective decoders |
+
+## Returns
+
+A `Decoder<ObjectDecoderType<Ds>>` that validates the specified fields and returns only those fields in the decoded object.
+
+## Behavior
+
+- **Extra fields**: Ignored (not included in output)
+- **Missing required fields**: Causes decode failure
+- **Missing optional fields**: Allowed
+- **Invalid field values**: Causes decode failure with field-specific errors
+
+## Examples
+
+### Basic Usage
+
+```typescript
+import { object, string, number } from 'decoders';
+
+const personDecoder = object({
+  name: string,
+  age: number
+});
+
+// Success - extra field "email" is ignored
+personDecoder.decode({
+  name: 'Alice',
+  age: 30,
+  email: 'alice@example.com'  // This field is ignored
+});
+// Result: { name: 'Alice', age: 30 }
+```
+
+### Optional Fields
+
+```typescript
+import { object, string, optional } from 'decoders';
+
+const userDecoder = object({
+  username: string,
+  bio: optional(string)
+});
+
+// Both succeed
+userDecoder.decode({ username: 'bob' });
+// Result: { username: 'bob' }
+
+userDecoder.decode({ username: 'bob', bio: 'Developer' });
+// Result: { username: 'bob', bio: 'Developer' }
+```
+
+### Nested Objects
+
+```typescript
+import { object, string, number } from 'decoders';
+
+const companyDecoder = object({
+  name: string,
+  address: object({
+    street: string,
+    city: string,
+    zipCode: string
+  }),
+  employeeCount: number
+});
+
+companyDecoder.decode({
+  name: 'Acme Corp',
+  address: {
+    street: '123 Main St',
+    city: 'Springfield',
+    zipCode: '12345',
+    country: 'USA'  // Ignored in nested object
+  },
+  employeeCount: 50,
+  founded: 1990  // Ignored at top level
+});
+// Result: 
+// {
+//   name: 'Acme Corp',
+//   address: { street: '123 Main St', city: 'Springfield', zipCode: '12345' },
+//   employeeCount: 50
+// }
+```
+
+### Error Handling
+
+```typescript
+import { object, string, number } from 'decoders';
+
+const decoder = object({
+  name: string,
+  age: number
+});
+
+// Missing required field
+decoder.decode({ name: 'Alice' });
+// Error: "Missing key: 'age'"
+
+// Invalid field type
+decoder.decode({ name: 'Alice', age: 'thirty' });
+// Error at field 'age': "Must be number"
+
+// Multiple errors
+decoder.decode({ age: 'thirty' });
+// Error: "Missing key: 'name'" (also shows error for 'age')
+```
+
+### Empty Object
+
+```typescript
+import { object } from 'decoders';
+
+const emptyDecoder = object({});
+
+emptyDecoder.decode({ foo: 'bar', baz: 123 });
+// Result: {} (all fields ignored)
+```
+
+## Error Messages
+
+The decoder provides detailed error messages:
+
+- **Missing single field**: `Missing key: 'fieldName'`
+- **Missing multiple fields**: `Missing keys: 'field1', 'field2'`
+- **Invalid field value**: Includes the nested decoder's error message
+- **Not an object**: `Must be an object` (from the underlying `pojo` decoder)
+
+## Implementation Notes
+
+- Built on top of the `pojo` decoder using `.chain()`
+- Computes the set of known keys at decoder definition time for performance
+- Treats explicit `undefined` values the same as missing keys
+- Collects all field errors before returning to provide comprehensive error messages
+- Only includes fields in the output if their values are not `undefined`
+
+## Related Decoders
+
+- [`exact`](/api/objects/exact) - Like `object()` but rejects extra fields
+- [`inexact`](/api/objects/inexact) - Like `object()` but passes through extra fields
+- [`pojo`](/api/primitives/pojo) - Accepts any plain object without validation
+
+## See Also
+
+- [Optional fields](/guides/optional-fields)
+- [Error handling](/guides/error-handling)
+- [Composing decoders](/guides/composition)

@@ -1,0 +1,283 @@
+---
+title: tuple
+description: Decode fixed-length arrays with position-specific types
+---
+
+## Signature
+
+```typescript
+function tuple<
+  Ds extends readonly [first: Decoder<unknown>, ...rest: readonly Decoder<unknown>[]]
+>(...decoders: Ds): Decoder<TupleDecoderType<Ds>>
+```
+
+## Description
+
+Accepts a tuple (an array with exactly **n** items) of values accepted by the **n** given decoders.
+
+Unlike [`array()`](/api/arrays/array) which validates all elements with the same decoder, `tuple()` validates each position with a different decoder, enabling heterogeneous arrays with type safety.
+
+## Type Inference
+
+The return type is a tuple type matching the decoder positions:
+
+```typescript
+const decoder = tuple(string, number, boolean);
+// Type: Decoder<[string, number, boolean]>
+
+const pairDecoder = tuple(string, string);
+// Type: Decoder<[string, string]>
+
+const mixedDecoder = tuple(
+  number,
+  object({ name: string }),
+  array(string)
+);
+// Type: Decoder<[number, { name: string }, string[]]>
+```
+
+## Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `...decoders` | `Decoder<unknown>[]` | Variable number of decoders, one for each tuple position |
+
+**Note**: At least one decoder is required (enforced by TypeScript).
+
+## Returns
+
+A `Decoder<TupleDecoderType<Ds>>` that validates a fixed-length array where each position matches its corresponding decoder.
+
+## Behavior
+
+- **Exact length required**: Array must have exactly as many elements as decoders
+- **Position-specific validation**: Each element validated by its corresponding decoder
+- **All positions validated**: Even if one fails, all are checked to provide complete error information
+- **Wrong length**: Decode fails with "Must be a N-tuple"
+- **Not an array**: Decode fails with "Must be an array"
+
+## Examples
+
+### Basic Usage
+
+```typescript
+import { tuple, string, number } from 'decoders';
+
+const pairDecoder = tuple(string, number);
+
+pairDecoder.decode(['Alice', 30]);
+// Result: ['Alice', 30]
+// Type: [string, number]
+
+pairDecoder.decode(['Alice']);
+// Error: "Must be a 2-tuple"
+
+pairDecoder.decode(['Alice', 30, 'extra']);
+// Error: "Must be a 2-tuple"
+
+pairDecoder.decode([30, 'Alice']);
+// Error: Type errors at positions 0 and 1
+```
+
+### Coordinates
+
+```typescript
+import { tuple, number } from 'decoders';
+
+const point2D = tuple(number, number);
+const point3D = tuple(number, number, number);
+
+point2D.decode([10, 20]);
+// Result: [10, 20]
+
+point3D.decode([10, 20, 30]);
+// Result: [10, 20, 30]
+
+point3D.decode([10, 20]);
+// Error: "Must be a 3-tuple"
+```
+
+### Mixed Types
+
+```typescript
+import { tuple, string, number, boolean, nullable } from 'decoders';
+
+const recordDecoder = tuple(
+  number,           // ID
+  string,           // Name
+  boolean,          // Active
+  nullable(string)  // Notes
+);
+
+recordDecoder.decode([1, 'Alice', true, 'Some notes']);
+// Result: [1, 'Alice', true, 'Some notes']
+
+recordDecoder.decode([1, 'Alice', true, null]);
+// Result: [1, 'Alice', true, null]
+```
+
+### Nested Structures
+
+```typescript
+import { tuple, string, number, object, array } from 'decoders';
+
+const complexDecoder = tuple(
+  string,
+  object({
+    id: number,
+    name: string
+  }),
+  array(number)
+);
+
+complexDecoder.decode([
+  'section-1',
+  { id: 42, name: 'Example' },
+  [1, 2, 3, 4]
+]);
+// Result: ['section-1', { id: 42, name: 'Example' }, [1, 2, 3, 4]]
+```
+
+### Key-Value Pairs
+
+```typescript
+import { tuple, string } from 'decoders';
+
+const kvPairDecoder = tuple(string, string);
+
+kvPairDecoder.decode(['name', 'Alice']);
+// Result: ['name', 'Alice']
+// Type: [string, string]
+
+// Useful for decoding simple key-value structures
+const kvArrayDecoder = array(kvPairDecoder);
+
+kvArrayDecoder.decode([
+  ['name', 'Alice'],
+  ['email', 'alice@example.com'],
+  ['role', 'admin']
+]);
+// Result: [['name', 'Alice'], ['email', 'alice@example.com'], ['role', 'admin']]
+```
+
+### Range Values
+
+```typescript
+import { tuple, number } from 'decoders';
+
+const rangeDecoder = tuple(number, number).refine(
+  ([min, max]) => min <= max,
+  'Min must be less than or equal to max'
+);
+
+rangeDecoder.decode([0, 100]);
+// Result: [0, 100]
+
+rangeDecoder.decode([100, 0]);
+// Error: "Min must be less than or equal to max"
+```
+
+### CSV Row Parsing
+
+```typescript
+import { tuple, string, number, email } from 'decoders';
+
+// Parse a CSV row: name, age, email
+const csvRowDecoder = tuple(string, number, email);
+
+csvRowDecoder.decode(['Alice', 30, 'alice@example.com']);
+// Result: ['Alice', 30, 'alice@example.com']
+
+// Can be combined with array for full CSV
+const csvDecoder = array(csvRowDecoder);
+```
+
+### Versioned Data
+
+```typescript
+import { tuple, constant, number, string, either } from 'decoders';
+
+const v1Decoder = tuple(
+  constant(1),  // Version
+  string,       // Data
+);
+
+const v2Decoder = tuple(
+  constant(2),  // Version
+  string,       // Data
+  number        // Timestamp
+);
+
+const versionedDecoder = either(v1Decoder, v2Decoder);
+
+versionedDecoder.decode([1, 'hello']);
+// Result: [1, 'hello']
+
+versionedDecoder.decode([2, 'hello', 1234567890]);
+// Result: [2, 'hello', 1234567890]
+```
+
+## Error Messages
+
+The decoder provides detailed error messages:
+
+- **Wrong length**: `Must be a N-tuple`
+  - Example: `Must be a 3-tuple`
+- **Not an array**: `Must be an array` (from underlying `poja` decoder)
+- **Element errors**: Shows errors for all failed positions in the annotated array
+
+### Multiple Errors
+
+Unlike `array()`, `tuple()` collects errors from **all** positions:
+
+```typescript
+const decoder = tuple(string, number, boolean);
+
+decoder.decode([123, 'not a number', 'not a boolean']);
+// Error: Shows type errors at all three positions
+```
+
+## Minimum Length
+
+The TypeScript signature requires at least one decoder:
+
+```typescript
+// TypeScript error: Expected at least 1 arguments, but got 0
+const invalid = tuple();
+
+// Valid: Single element tuple
+const valid = tuple(string);
+valid.decode(['hello']);
+// Result: ['hello']
+// Type: [string]
+```
+
+## Comparison with Array
+
+| Feature | `array(decoder)` | `tuple(...decoders)` |
+|---------|-----------------|---------------------|
+| Length | Variable | Fixed (exact match required) |
+| Element types | Homogeneous (all same type) | Heterogeneous (different per position) |
+| Type inference | `T[]` | `[T1, T2, ..., Tn]` |
+| Error collection | Fails at first error | Collects all errors |
+| Use case | Lists of items | Structured records |
+
+## Implementation Notes
+
+- First validates the array length using `ntuple(n)` refinement
+- Uses `.chain()` to map over all decoders
+- Collects both successful values and errors
+- Returns all results only if all decoders succeeded
+- Provides annotated error array if any decoder failed
+
+## Related Decoders
+
+- [`array`](/api/arrays/array) - Variable-length arrays with uniform types
+- [`poja`](/api/arrays/poja) - Accepts any array without validation
+- [`nonEmptyArray`](/api/arrays/non-empty-array) - Arrays with at least one element
+
+## See Also
+
+- [Type inference](/guides/type-inference)
+- [Error handling](/guides/error-handling)
+- [Composing decoders](/guides/composition)

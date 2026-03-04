@@ -1,0 +1,326 @@
+---
+title: String Decoders
+description: Decoders for validating and transforming string values
+---
+
+## string
+
+Accepts and returns strings.
+
+```typescript
+const string: Decoder<string>
+```
+
+### Example
+
+```typescript
+import { string } from 'decoders';
+
+string.decode('hello');  // ✓ 'hello'
+string.decode(123);      // ✗ Error: Must be string
+```
+
+## nonEmptyString
+
+Like `string`, but will reject the empty string or strings containing only whitespace.
+
+```typescript
+const nonEmptyString: Decoder<string>
+```
+
+### Example
+
+```typescript
+import { nonEmptyString } from 'decoders';
+
+nonEmptyString.decode('hello');  // ✓ 'hello'
+nonEmptyString.decode('   ');    // ✗ Error: Must be non-empty string
+nonEmptyString.decode('');       // ✗ Error: Must be non-empty string
+```
+
+## regex
+
+Accepts and returns strings that match the given regular expression.
+
+```typescript
+function regex(regex: RegExp, msg: string): Decoder<string>
+```
+
+### Parameters
+
+- `regex` - The regular expression pattern to match against
+- `msg` - Error message to display when the string doesn't match
+
+### Example
+
+```typescript
+import { regex } from 'decoders';
+
+const zipCode = regex(/^\d{5}$/, 'Must be a 5-digit zip code');
+
+zipCode.decode('12345');   // ✓ '12345'
+zipCode.decode('1234');    // ✗ Error: Must be a 5-digit zip code
+```
+
+## startsWith
+
+Accepts and returns strings that start with the given prefix.
+
+```typescript
+function startsWith<P extends string>(prefix: P): Decoder<`${P}${string}`>
+```
+
+### Parameters
+
+- `prefix` - The required string prefix
+
+### Example
+
+```typescript
+import { startsWith } from 'decoders';
+
+const apiKey = startsWith('sk_');
+
+apiKey.decode('sk_test_123');  // ✓ 'sk_test_123'
+apiKey.decode('pk_test_123');  // ✗ Error: Must start with 'sk_'
+```
+
+## endsWith
+
+Accepts and returns strings that end with the given suffix.
+
+```typescript
+function endsWith<S extends string>(suffix: S): Decoder<`${string}${S}`>
+```
+
+### Parameters
+
+- `suffix` - The required string suffix
+
+### Example
+
+```typescript
+import { endsWith } from 'decoders';
+
+const imageFile = endsWith('.png');
+
+imageFile.decode('photo.png');   // ✓ 'photo.png'
+imageFile.decode('photo.jpg');   // ✗ Error: Must end with '.png'
+```
+
+## email
+
+Accepts and returns strings that are syntactically valid email addresses. (This will not mean that the email address actually exists.)
+
+```typescript
+const email: Decoder<string>
+```
+
+### Example
+
+```typescript
+import { email } from 'decoders';
+
+email.decode('user@example.com');     // ✓ 'user@example.com'
+email.decode('not-an-email');         // ✗ Error: Must be email
+```
+
+## urlString
+
+Accepts strings that are valid URLs.
+
+```typescript
+const urlString: Decoder<string>
+```
+
+### Example
+
+```typescript
+import { urlString } from 'decoders';
+
+urlString.decode('https://example.com');  // ✓ 'https://example.com'
+urlString.decode('not a url');            // ✗ Error: Must be URL
+```
+
+## url
+
+Accepts strings that are valid URLs, returns the value as a URL instance.
+
+```typescript
+const url: Decoder<URL>
+```
+
+### Example
+
+```typescript
+import { url } from 'decoders';
+
+const result = url.decode('https://example.com');
+// ✓ URL { href: 'https://example.com', ... }
+
+url.decode('not a url');  // ✗ Error: Must be URL
+```
+
+## httpsUrl
+
+Accepts strings that are valid URLs, but only HTTPS ones. Returns the value as a URL instance.
+
+```typescript
+const httpsUrl: Decoder<URL>
+```
+
+### Example
+
+```typescript
+import { httpsUrl } from 'decoders';
+
+httpsUrl.decode('https://example.com');  // ✓ URL { ... }
+httpsUrl.decode('http://example.com');   // ✗ Error: Must be an HTTPS URL
+```
+
+## identifier
+
+Accepts and returns strings that are valid identifiers in most programming languages.
+
+```typescript
+const identifier: Decoder<string>
+```
+
+### Example
+
+```typescript
+import { identifier } from 'decoders';
+
+identifier.decode('myVariable');   // ✓ 'myVariable'
+identifier.decode('my_var_123');   // ✓ 'my_var_123'
+identifier.decode('123invalid');   // ✗ Error: Must be valid identifier
+identifier.decode('my-var');       // ✗ Error: Must be valid identifier
+```
+
+## nanoid
+
+Accepts and returns [nanoid](https://zelark.github.io/nano-id-cc) string values. It assumes the default nanoid alphabet. If you're using a custom alphabet, use `regex()` instead.
+
+```typescript
+function nanoid(options?: SizeOptions): Decoder<string>
+```
+
+### Parameters
+
+- `options` - Optional size constraints (defaults to `{ size: 21 }`)
+
+### Example
+
+```typescript
+import { nanoid } from 'decoders';
+
+const defaultNanoid = nanoid();
+defaultNanoid.decode('V1StGXR8_Z5jdHi6B-myT');  // ✓ (21 chars)
+
+const customNanoid = nanoid({ size: 10 });
+customNanoid.decode('V1StGXR8_Z');  // ✓ (10 chars)
+```
+
+## uuid
+
+Accepts strings that are valid [UUIDs](https://en.wikipedia.org/wiki/universally_unique_identifier) (universally unique identifier).
+
+```typescript
+const uuid: Decoder<string>
+```
+
+### Example
+
+```typescript
+import { uuid } from 'decoders';
+
+uuid.decode('550e8400-e29b-41d4-a716-446655440000');  // ✓
+uuid.decode('not-a-uuid');                          // ✗ Error: Must be uuid
+```
+
+## uuidv1
+
+Like `uuid`, but only accepts [UUIDv1](https://en.wikipedia.org/wiki/Universally_unique_identifier#Version_1_%28date-time_and_MAC_address%29) strings.
+
+```typescript
+const uuidv1: Decoder<string>
+```
+
+### Example
+
+```typescript
+import { uuidv1 } from 'decoders';
+
+uuidv1.decode('550e8400-e29b-11d4-a716-446655440000');  // ✓ (v1)
+uuidv1.decode('550e8400-e29b-41d4-a716-446655440000');  // ✗ Error: Must be uuidv1
+```
+
+## uuidv4
+
+Like `uuid`, but only accepts [UUIDv4](https://en.wikipedia.org/wiki/Universally_unique_identifier#Version_4_%28random%29) strings.
+
+```typescript
+const uuidv4: Decoder<string>
+```
+
+### Example
+
+```typescript
+import { uuidv4 } from 'decoders';
+
+uuidv4.decode('550e8400-e29b-41d4-a716-446655440000');  // ✓ (v4)
+uuidv4.decode('550e8400-e29b-11d4-a716-446655440000');  // ✗ Error: Must be uuidv4
+```
+
+## decimal
+
+Accepts and returns strings with decimal digits only (base-10). To convert these to numbers, use the `numeric` decoder.
+
+```typescript
+const decimal: Decoder<string>
+```
+
+### Example
+
+```typescript
+import { decimal } from 'decoders';
+
+decimal.decode('12345');   // ✓ '12345'
+decimal.decode('123abc');  // ✗ Error: Must only contain digits
+```
+
+## hexadecimal
+
+Accepts and returns strings with hexadecimal digits only (base-16).
+
+```typescript
+const hexadecimal: Decoder<string>
+```
+
+### Example
+
+```typescript
+import { hexadecimal } from 'decoders';
+
+hexadecimal.decode('1a2b3c');   // ✓ '1a2b3c'
+hexadecimal.decode('DEADBEEF');  // ✓ 'DEADBEEF'
+hexadecimal.decode('xyz');       // ✗ Error: Must only contain hexadecimal digits
+```
+
+## numeric
+
+Accepts valid numerical strings (in base-10) and returns them as a number. To only accept numerical strings and keep them as string values, use the `decimal` decoder.
+
+```typescript
+const numeric: Decoder<number>
+```
+
+### Example
+
+```typescript
+import { numeric } from 'decoders';
+
+numeric.decode('12345');  // ✓ 12345 (as number)
+numeric.decode('123.45'); // ✗ Error: Must only contain digits
+numeric.decode('abc');    // ✗ Error: Must only contain digits
+```

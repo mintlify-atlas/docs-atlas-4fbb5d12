@@ -1,0 +1,218 @@
+---
+title: always
+description: Ignore input and always return a specific value
+---
+
+## Overview
+
+The `always()` decoder accepts any input, completely ignores it, and always returns the provided value instead. This is useful for manually adding extra fields to object decoders or injecting constant values during validation.
+
+## Basic Usage
+
+```typescript
+import { always } from 'decoders';
+
+const timestampDecoder = always(() => new Date());
+
+const result1 = timestampDecoder.verify('anything');
+const result2 = timestampDecoder.verify({ foo: 'bar' });
+const result3 = timestampDecoder.verify(null);
+// All return a Date instance (current timestamp)
+```
+
+## Type Signature
+
+```typescript
+// With scalar value
+function always<C extends Scalar>(value: C): Decoder<C>;
+
+// With any value or function
+function always<T>(value: T | (() => T)): Decoder<T>;
+```
+
+Where `Scalar` is `string | number | boolean | null | undefined | symbol`.
+
+## Parameters
+
+<ParamField path="value" type="T | (() => T)" required>
+  The value to always return. Can be a constant value or a function that returns the value. If a function is provided, it will be called each time the decoder runs.
+</ParamField>
+
+## Return Value
+
+Returns a `Decoder<T>` that accepts any input and always returns the specified value.
+
+## Examples
+
+### Adding computed fields to objects
+
+```typescript
+import { object, string, number, always } from 'decoders';
+
+const userDecoder = object({
+  id: number,
+  name: string,
+  // Add a timestamp field that's always the current time
+  createdAt: always(() => new Date()),
+  // Add a constant version field
+  version: always('v1'),
+});
+
+const user = userDecoder.verify({
+  id: 123,
+  name: 'Alice',
+  // Note: createdAt and version are not in the input
+});
+// Result: {
+//   id: 123,
+//   name: 'Alice',
+//   createdAt: Date (current time),
+//   version: 'v1'
+// }
+```
+
+### Default values
+
+```typescript
+import { object, string, always } from 'decoders';
+
+const configDecoder = object({
+  apiUrl: string,
+  timeout: always(5000),
+  retries: always(3),
+});
+
+const config = configDecoder.verify({
+  apiUrl: 'https://api.example.com',
+});
+// Result: {
+//   apiUrl: 'https://api.example.com',
+//   timeout: 5000,
+//   retries: 3
+// }
+```
+
+### With functions for dynamic values
+
+```typescript
+import { object, string, always } from 'decoders';
+
+let counter = 0;
+
+const itemDecoder = object({
+  name: string,
+  // Each item gets a unique ID
+  id: always(() => counter++),
+  // Each item gets a UUID
+  uuid: always(() => crypto.randomUUID()),
+});
+
+const item1 = itemDecoder.verify({ name: 'First' });
+// { name: 'First', id: 0, uuid: '...' }
+
+const item2 = itemDecoder.verify({ name: 'Second' });
+// { name: 'Second', id: 1, uuid: '...' }
+```
+
+### Injecting context or metadata
+
+```typescript
+import { object, string, always } from 'decoders';
+
+const logEntryDecoder = object({
+  message: string,
+  level: string,
+  // Automatically add metadata
+  timestamp: always(() => Date.now()),
+  hostname: always(() => process.env.HOSTNAME || 'unknown'),
+  environment: always(process.env.NODE_ENV || 'development'),
+});
+
+const log = logEntryDecoder.verify({
+  message: 'User logged in',
+  level: 'info',
+});
+// Result includes timestamp, hostname, and environment
+```
+
+### Constant vs function values
+
+```typescript
+import { always } from 'decoders';
+
+// Using a constant value (evaluated once)
+const constantDecoder = always(new Date());
+const result1 = constantDecoder.verify('anything');
+const result2 = constantDecoder.verify('anything');
+// result1 and result2 have the SAME Date instance
+
+// Using a function (evaluated each time)
+const functionDecoder = always(() => new Date());
+const result3 = functionDecoder.verify('anything');
+const result4 = functionDecoder.verify('anything');
+// result3 and result4 have DIFFERENT Date instances
+```
+
+<Warning>
+  When passing objects or arrays directly to `always()`, the same instance is reused:
+  
+  ```typescript
+  const decoder = always({ value: 0 });
+  const result1 = decoder.verify('a');
+  const result2 = decoder.verify('b');
+  
+  result1.value = 10;
+  console.log(result2.value); // 10 (same object!)
+  ```
+  
+  Use a function to create new instances:
+  
+  ```typescript
+  const decoder = always(() => ({ value: 0 }));
+  const result1 = decoder.verify('a');
+  const result2 = decoder.verify('b');
+  
+  result1.value = 10;
+  console.log(result2.value); // 0 (different objects)
+  ```
+</Warning>
+
+## Use Cases
+
+1. **Adding timestamps**: Inject creation or modification times
+2. **Version fields**: Add API or schema version information
+3. **Default configuration**: Provide default values that aren't in the input
+4. **Computed fields**: Generate IDs, UUIDs, or other derived values
+5. **Environment injection**: Add environment-specific data to validated objects
+6. **Testing**: Inject mock data or test values
+
+## Difference from `constant()`
+
+| Decoder | Validates Input? | Returns |
+|---------|-----------------|----------|
+| `constant(value)` | Yes (must match exactly) | The matched value |
+| `always(value)` | No (accepts anything) | The specified value |
+
+```typescript
+import { constant, always } from 'decoders';
+
+// constant: validates the input
+constant('hello').verify('hello'); // OK
+constant('hello').verify('world'); // Error
+
+// always: ignores the input
+always('hello').verify('hello'); // Returns 'hello'
+always('hello').verify('world'); // Also returns 'hello'
+always('hello').verify(123); // Still returns 'hello'
+```
+
+## Related Decoders
+
+- [`constant`](/api/utilities/constant) - Validates exact literal values
+- [`optional`](/api/unions/optional) - Provides default values for undefined
+- [`nullable`](/api/unions/nullable) - Provides default values for null
+
+## See Also
+
+- [Object validation guide](/guides/object-validation)
+- [Transformations guide](/guides/transformations)

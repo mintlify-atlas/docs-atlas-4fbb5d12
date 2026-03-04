@@ -1,0 +1,358 @@
+---
+title: 'Decoder<T>'
+description: 'The Decoder class represents a type-safe decoder that validates and transforms untrusted data'
+---
+
+The `Decoder<T>` class is the core abstraction in the decoders library. It represents a reusable, composable decoder that can validate and transform untrusted input data into typed values.
+
+## Type Signature
+
+```typescript
+interface Decoder<T> {
+  decode(blob: unknown): DecodeResult<T>;
+  verify(blob: unknown, formatterFn?: (ann: Annotation) => string | Error): T;
+  value(blob: unknown): T | undefined;
+  transform<V>(transformFn: (value: T) => V): Decoder<V>;
+  refine<N extends T>(predicate: (value: T) => value is N, msg: string): Decoder<N>;
+  refine(predicate: (value: T) => boolean, msg: string): Decoder<T>;
+  refineType<SubT extends T>(): Decoder<SubT>;
+  reject(rejectFn: (value: T) => string | Annotation | null): Decoder<T>;
+  describe(message: string): Decoder<T>;
+  chain<V>(next: Next<V, T>): Decoder<V>;
+  pipe<V, D extends Decoder<V>>(next: D | ((blob: T) => D)): Decoder<DecoderType<D>>;
+}
+```
+
+## Decoding Methods
+
+These methods are used to validate and decode untrusted input.
+
+### .decode()
+
+Verifies untrusted input and returns a `DecodeResult`. This method never throws.
+
+<ParamField path="blob" type="unknown" required>
+  The untrusted input to validate
+</ParamField>
+
+**Returns:** `DecodeResult<T>` - Either `Ok<T>` or `Err<Annotation>`
+
+```typescript
+import { string } from 'decoders';
+
+const result = string.decode('hello');
+if (result.ok) {
+  console.log(result.value); // 'hello'
+} else {
+  console.error(result.error);
+}
+
+// Invalid input
+const failed = string.decode(123);
+console.log(failed.ok); // false
+console.log(failed.error); // Annotation object
+```
+
+### .verify()
+
+Verifies untrusted input and either returns the validated value or throws a decoding error.
+
+<ParamField path="blob" type="unknown" required>
+  The untrusted input to validate
+</ParamField>
+
+<ParamField path="formatterFn" type="(ann: Annotation) => string | Error">
+  Optional formatter for error messages. Defaults to `formatInline`.
+</ParamField>
+
+**Returns:** `T` - The validated and typed value
+
+**Throws:** Error if validation fails
+
+```typescript
+import { number, formatShort } from 'decoders';
+
+// Valid input
+const value = number.verify(42);
+console.log(value); // 42
+
+// Invalid input - throws error
+try {
+  number.verify('not a number');
+} catch (error) {
+  console.error(error.message); // 'Must be number'
+}
+
+// Custom error formatter
+try {
+  number.verify('xyz', formatShort);
+} catch (error) {
+  console.error(error.message);
+}
+
+// Custom error with custom formatter
+try {
+  number.verify('xyz', () => new Error('Computer says no'));
+} catch (error) {
+  console.error(error.message); // 'Computer says no'
+}
+```
+
+### .value()
+
+Verifies untrusted input and returns the value if valid, or `undefined` if invalid.
+
+<ParamField path="blob" type="unknown" required>
+  The untrusted input to validate
+</ParamField>
+
+**Returns:** `T | undefined` - The validated value or undefined
+
+```typescript
+import { number } from 'decoders';
+
+const valid = number.value(42);
+console.log(valid); // 42
+
+const invalid = number.value('not a number');
+console.log(invalid); // undefined
+```
+
+## Transformation Methods
+
+These methods create new decoders by transforming or validating the output of the current decoder.
+
+### .transform()
+
+Builds a new decoder that transforms the decoded value using a function.
+
+<ParamField path="transformFn" type="(value: T) => V" required>
+  Function to transform the decoded value. If it throws an error, the decoder will fail.
+</ParamField>
+
+**Returns:** `Decoder<V>` - A new decoder with the transformed type
+
+```typescript
+import { string, number } from 'decoders';
+
+// Transform string to its length
+const stringLength = string.transform(s => s.length);
+console.log(stringLength.verify('hello')); // 5
+
+// Transform string to uppercase
+const uppercase = string.transform(s => s.toUpperCase());
+console.log(uppercase.verify('hello')); // 'HELLO'
+
+// Throwing transformation fails the decoder
+const oddNumber = number.transform(n => {
+  if (n % 2 !== 0) return n;
+  throw new Error('Must be odd');
+});
+
+console.log(oddNumber.verify(13)); // 13
+// oddNumber.verify(4) throws 'Must be odd'
+```
+
+### .refine()
+
+Builds a new decoder with an additional validation predicate.
+
+<ParamField path="predicate" type="(value: T) => boolean" required>
+  Predicate function that must return true for the value to be accepted
+</ParamField>
+
+<ParamField path="msg" type="string" required>
+  Error message to use when the predicate returns false
+</ParamField>
+
+**Returns:** `Decoder<T>` or `Decoder<N>` (when using type guard)
+
+```typescript
+import { number } from 'decoders';
+
+// Refine to only accept odd numbers
+const oddNumber = number.refine(
+  n => n % 2 !== 0,
+  'Must be odd'
+);
+
+console.log(oddNumber.decode(3).ok); // true
+console.log(oddNumber.decode(4).ok); // false
+
+// Using type guard
+const isPositive = (n: number): n is number => n > 0;
+const positiveNumber = number.refine(isPositive, 'Must be positive');
+```
+
+### .refineType()
+
+Casts the return type of the decoder to a narrower type. This is a type-level operation with no runtime effect.
+
+**Returns:** `Decoder<SubT>` where `SubT extends T`
+
+```typescript
+import { string } from 'decoders';
+
+type Brand = 'hi' | 'hello' | 'foo';
+const branded = string.refineType<Brand>();
+// Type is now Decoder<Brand>, but runtime behavior unchanged
+```
+
+### .reject()
+
+Builds a new decoder with an additional rejection function that can provide dynamic error messages.
+
+<ParamField path="rejectFn" type="(value: T) => string | Annotation | null" required>
+  Function that returns an error message to reject, or null to accept
+</ParamField>
+
+**Returns:** `Decoder<T>`
+
+```typescript
+import { pojo, number, annotate } from 'decoders';
+
+// Reject objects with keys starting with underscore
+const noPrivateKeys = pojo.reject(obj => {
+  const badKeys = Object.keys(obj).filter(key => key.startsWith('_'));
+  return badKeys.length > 0 
+    ? `Disallowed keys: ${badKeys.join(', ')}` 
+    : null;
+});
+
+noPrivateKeys.verify({ id: 123, name: 'Bob' }); // OK
+// noPrivateKeys.verify({ id: 123, _x: 1 }) throws error
+
+// With Annotation for custom error display
+const oddNumber = number.reject(n =>
+  n % 2 === 0 
+    ? annotate('***', 'Must be odd') 
+    : null
+);
+```
+
+### .describe()
+
+Builds a new decoder with a custom error message that replaces the default error.
+
+<ParamField path="message" type="string" required>
+  The error message to use when validation fails
+</ParamField>
+
+**Returns:** `Decoder<T>`
+
+```typescript
+import { string } from 'decoders';
+
+const textField = string.describe('Must be text');
+
+console.log(textField.verify('hello')); // 'hello'
+// textField.verify(123) throws 'Must be text'
+```
+
+## Composition Methods
+
+These methods allow you to compose decoders together.
+
+### .pipe()
+
+Sends the output of this decoder as input to another decoder.
+
+<ParamField path="next" type="Decoder<V> | ((blob: T) => Decoder<V>)" required>
+  The decoder to pipe into, or a function that returns a decoder based on the decoded value
+</ParamField>
+
+**Returns:** `Decoder<V>`
+
+```typescript
+import { string, array, nonEmptyString, positiveInteger } from 'decoders';
+
+// Validate transformed result
+const csvNumbers = string
+  .transform(s => s.split(','))
+  .pipe(array(nonEmptyString));
+
+console.log(csvNumbers.verify('a,b,c')); // ['a', 'b', 'c']
+
+// Conditional piping
+const username = string; // assume this exists
+const email = string;    // assume this exists
+
+const identifier = string.pipe(s => 
+  s.startsWith('@') ? username : email
+);
+
+// Chain multiple transformations
+const stringToPositiveInt = string
+  .transform(Number)
+  .pipe(positiveInteger);
+
+console.log(stringToPositiveInt.verify('123')); // 123
+```
+
+### .chain()
+
+Advanced low-level API that sends the output of the current decoder into another decoder or acceptance function.
+
+<ParamField path="next" type="Next<V, T>" required>
+  Either a `Decoder<V>` or an acceptance function that receives the decoded value and returns a `DecodeResult<V>` or `Decoder<V>`
+</ParamField>
+
+**Returns:** `Decoder<V>`
+
+**Note:** This is an advanced API. Most cases are better handled by `.transform()`, `.refine()`, or `.pipe()`.
+
+```typescript
+import { string, positiveInteger } from 'decoders';
+
+// Parse hex string to number
+const hexNumber = string.chain((s, ok, err) => {
+  const n = parseInt(s, 16);
+  return !Number.isNaN(n) ? ok(n) : err('Invalid hex');
+});
+
+console.log(hexNumber.verify('DEADC0DE')); // 3735929054
+
+// Chain with a decoder
+const stringToInt = string
+  .transform(Number)
+  .chain(positiveInteger);
+
+// Chain returning a decoder from function
+const dynamic = string
+  .transform(Number)
+  .chain(() => positiveInteger);
+```
+
+## Helper Types
+
+### DecoderType&lt;D&gt;
+
+Extracts the output type from a Decoder.
+
+```typescript
+import type { DecoderType } from 'decoders';
+import { string, number } from 'decoders';
+
+type StringType = DecoderType<typeof string>; // string
+type NumberType = DecoderType<typeof number>; // number
+
+type ArrayOfNumbers = DecoderType<Decoder<number[]>>; // number[]
+```
+
+## Standard Schema Support
+
+Every decoder implements the Standard Schema v1 interface:
+
+```typescript
+const decoder: Decoder<T> = /* ... */;
+
+// Access Standard Schema interface
+const standardSchema = decoder['~standard'];
+
+// Properties:
+// - version: 1
+// - vendor: 'decoders'
+// - validate: (blob: unknown) => { value: T } | { issues: Issue[] }
+```
+
+See the [Standard Schema specification](https://github.com/standard-schema/standard-schema) for more details.

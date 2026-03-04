@@ -1,0 +1,274 @@
+---
+title: sized
+description: Validate length constraints on strings, arrays, and sets
+---
+
+## Overview
+
+The `sized()` decoder validates length constraints on strings, arrays, or ES6 Sets. It accepts an existing decoder and adds size restrictions, rejecting values that don't meet the specified constraints.
+
+## Basic Usage
+
+```typescript
+import { sized, string } from 'decoders';
+
+const usernameDecoder = sized(string, { min: 3, max: 20 });
+
+const username = usernameDecoder.verify('alice');
+// Type: string
+// Result: 'alice'
+
+usernameDecoder.verify('ab'); // Error: too short (min 3)
+usernameDecoder.verify('a'.repeat(25)); // Error: too long (max 20)
+```
+
+## Type Signature
+
+```typescript
+function sized<T extends Sized>(
+  decoder: Decoder<T>,
+  options: SizeOptions
+): Decoder<T>;
+
+type Sized = string | unknown[] | Set<unknown>;
+
+type SizeOptions = {
+  min?: number;
+  max?: number;
+};
+```
+
+## Parameters
+
+<ParamField path="decoder" type="Decoder<T>" required>
+  The base decoder for strings, arrays, or sets. The validated value must have a `.length` or `.size` property.
+</ParamField>
+
+<ParamField path="options" type="SizeOptions" required>
+  Size constraints object with optional `min` and `max` properties.
+</ParamField>
+
+<ParamField path="options.min" type="number">
+  Minimum allowed length/size (inclusive).
+</ParamField>
+
+<ParamField path="options.max" type="number">
+  Maximum allowed length/size (inclusive).
+</ParamField>
+
+## Return Value
+
+Returns a `Decoder<T>` that validates the base type and enforces size constraints.
+
+## Examples
+
+### String length validation
+
+```typescript
+import { sized, string } from 'decoders';
+
+// Password must be at least 8 characters
+const passwordDecoder = sized(string, { min: 8 });
+
+passwordDecoder.verify('secret123'); // OK
+passwordDecoder.verify('short'); // Error: too short
+
+// Product code must be exactly 10 characters
+const productCodeDecoder = sized(string, { min: 10, max: 10 });
+
+productCodeDecoder.verify('ABC1234567'); // OK
+productCodeDecoder.verify('ABC123'); // Error: too short
+productCodeDecoder.verify('ABC123456789'); // Error: too long
+```
+
+### Array length validation
+
+```typescript
+import { sized, array, string } from 'decoders';
+
+// Tags array must have 1-5 items
+const tagsDecoder = sized(array(string), { min: 1, max: 5 });
+
+tagsDecoder.verify(['typescript', 'validation']); // OK
+tagsDecoder.verify([]); // Error: too short (min 1)
+tagsDecoder.verify(['a', 'b', 'c', 'd', 'e', 'f']); // Error: too long (max 5)
+```
+
+### Set size validation
+
+```typescript
+import { sized, setFromArray, number } from 'decoders';
+
+// Need at least 2 unique IDs
+const idsDecoder = sized(setFromArray(number), { min: 2 });
+
+idsDecoder.verify([1, 2, 3]); // OK (Set has 3 items)
+idsDecoder.verify([1, 1, 1]); // Error: Set has only 1 unique item (min 2)
+```
+
+### Non-empty constraints
+
+```typescript
+import { sized, string, array, number } from 'decoders';
+
+// String must not be empty
+const nonEmptyString = sized(string, { min: 1 });
+
+nonEmptyString.verify('hello'); // OK
+nonEmptyString.verify(''); // Error: too short
+
+// Array must not be empty
+const nonEmptyArray = sized(array(number), { min: 1 });
+
+nonEmptyArray.verify([1, 2, 3]); // OK
+nonEmptyArray.verify([]); // Error: too short
+```
+
+### Maximum size limits
+
+```typescript
+import { sized, array, string } from 'decoders';
+
+// Limit API response items
+const limitedItemsDecoder = sized(array(string), { max: 100 });
+
+limitedItemsDecoder.verify(['item1', 'item2']); // OK
+limitedItemsDecoder.verify(Array(101).fill('item')); // Error: too long
+```
+
+### Combined with other decoders
+
+```typescript
+import { sized, string, regex } from 'decoders';
+
+// Username: 3-20 characters, alphanumeric only
+const usernameDecoder = sized(
+  regex(/^[a-zA-Z0-9]+$/, 'Must be alphanumeric'),
+  { min: 3, max: 20 }
+);
+
+usernameDecoder.verify('alice'); // OK
+usernameDecoder.verify('ab'); // Error: too short
+usernameDecoder.verify('alice@123'); // Error: not alphanumeric
+```
+
+### In object decoders
+
+```typescript
+import { object, sized, string, array } from 'decoders';
+
+const postDecoder = object({
+  title: sized(string, { min: 1, max: 100 }),
+  body: sized(string, { min: 10, max: 5000 }),
+  tags: sized(array(string), { min: 1, max: 5 }),
+});
+
+const post = postDecoder.verify({
+  title: 'My First Post',
+  body: 'This is a longer body with at least 10 characters...',
+  tags: ['typescript', 'validation'],
+});
+```
+
+## Error Messages
+
+The `sized()` decoder provides clear error messages when constraints are violated:
+
+```typescript
+import { sized, string } from 'decoders';
+
+const decoder = sized(string, { min: 5, max: 10 });
+
+try {
+  decoder.verify('abc');
+} catch (error) {
+  console.error(error.message);
+  // Indicates the value is too short and what the minimum is
+}
+
+try {
+  decoder.verify('abcdefghijklmnop');
+} catch (error) {
+  console.error(error.message);
+  // Indicates the value is too long and what the maximum is
+}
+```
+
+## Implementation Details
+
+The `sized()` decoder uses the `.reject()` method to add size validation:
+
+```typescript
+// Simplified implementation
+export function sized<T extends Sized>(
+  decoder: Decoder<T>,
+  options: SizeOptions
+): Decoder<T> {
+  return decoder.reject(bySizeOptions(options));
+}
+```
+
+It checks the `.length` property for strings and arrays, and the `.size` property for Sets.
+
+## Common Patterns
+
+### Username validation
+
+```typescript
+import { sized, regex } from 'decoders';
+
+const username = sized(
+  regex(/^[a-zA-Z0-9_]+$/, 'Alphanumeric and underscores only'),
+  { min: 3, max: 20 }
+);
+```
+
+### Email with length limit
+
+```typescript
+import { sized, email } from 'decoders';
+
+const limitedEmail = sized(email, { max: 255 });
+```
+
+### Pagination limits
+
+```typescript
+import { sized, array } from 'decoders';
+
+const paginatedResults = sized(array(itemDecoder), { max: 50 });
+```
+
+### Required multi-selection
+
+```typescript
+import { sized, array, string } from 'decoders';
+
+// User must select at least 2 options, max 5
+const selectedOptions = sized(array(string), { min: 2, max: 5 });
+```
+
+## Type Safety
+
+TypeScript preserves the original type through `sized()`:
+
+```typescript
+import { sized, array, number } from 'decoders';
+
+const decoder = sized(array(number), { min: 1 });
+type Result = ReturnType<typeof decoder.verify>;
+// Type: number[] (not just unknown[])
+```
+
+## Related Decoders
+
+- [`string`](/api/primitives/string) - Base string decoder
+- [`array`](/api/arrays/array) - Base array decoder
+- [`setFromArray`](/api/collections/set) - Base set decoder
+- [`regex`](/api/strings/regex) - Pattern-based string validation
+
+## See Also
+
+- [Refinements guide](/guides/refinements)
+- [String validation](/api/strings/email)
+- [Array validation guide](/guides/array-validation)

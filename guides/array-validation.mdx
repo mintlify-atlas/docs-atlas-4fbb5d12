@@ -1,0 +1,296 @@
+---
+title: Array Validation
+description: Validate arrays, tuples, and lists with type-safe decoders
+---
+
+This guide covers array validation, from simple lists to complex tuples with heterogeneous elements.
+
+## Basic Array Validation
+
+Use `array()` to validate that an input is an array and that all elements match the given decoder.
+
+```typescript
+import { array, string, number } from 'decoders';
+
+// Array of strings
+const stringArrayDecoder = array(string);
+
+stringArrayDecoder.verify(['hello', 'world']); // ['hello', 'world']
+stringArrayDecoder.verify([]); // [] (empty arrays are valid)
+stringArrayDecoder.verify(['hello', 123]); // Error: Must be string (at index 1)
+
+// Array of numbers
+const numberArrayDecoder = array(number);
+
+numberArrayDecoder.verify([1, 2, 3, 4, 5]); // [1, 2, 3, 4, 5]
+numberArrayDecoder.verify([1, 'two', 3]); // Error: Must be number (at index 1)
+```
+
+## Non-Empty Arrays
+
+Use `nonEmptyArray()` to reject empty arrays.
+
+```typescript
+import { nonEmptyArray, string } from 'decoders';
+
+const tagsDecoder = nonEmptyArray(string);
+
+tagsDecoder.verify(['javascript', 'typescript']); // ✓ OK
+tagsDecoder.verify([]); // Error: Must be non-empty array
+```
+
+This is useful when you need to ensure at least one element is present.
+
+## Plain Arrays (POJA)
+
+The `poja` decoder accepts any array without validating its contents.
+
+```typescript
+import { poja } from 'decoders';
+
+poja.verify([1, 'two', { three: 3 }]); // ✓ OK (mixed types)
+poja.verify([]); // ✓ OK (empty array)
+poja.verify('not an array'); // Error: Must be an array
+poja.verify({ length: 0 }); // Error: Must be an array
+```
+
+"POJA" stands for "Plain Old JavaScript Array" (analogous to POJO for objects).
+
+## Tuple Validation
+
+Use `tuple()` to validate fixed-length arrays with specific types at each position.
+
+```typescript
+import { tuple, string, number, boolean } from 'decoders';
+
+// Tuple of [string, number]
+const pairDecoder = tuple(string, number);
+
+pairDecoder.verify(['age', 30]); // ['age', 30]
+pairDecoder.verify(['name', 'Alice']); // Error: Must be number (at position 1)
+pairDecoder.verify(['only one']); // Error: Must be a 2-tuple
+pairDecoder.verify(['too', 'many', 'items']); // Error: Must be a 2-tuple
+
+// More complex tuple
+const recordDecoder = tuple(string, number, boolean);
+
+recordDecoder.verify(['active', 42, true]); // ['active', 42, true]
+recordDecoder.verify(['active', 42]); // Error: Must be a 3-tuple
+```
+
+### TypeScript Inference for Tuples
+
+Tuples maintain their type information:
+
+```typescript
+import { tuple, string, number } from 'decoders';
+import type { DecoderType } from 'decoders';
+
+const coordinateDecoder = tuple(number, number);
+
+type Coordinate = DecoderType<typeof coordinateDecoder>;
+// Type is: [number, number]
+
+const point = coordinateDecoder.verify([10, 20]);
+// point[0] is number
+// point[1] is number
+// point[2] doesn't exist (TypeScript knows this)
+```
+
+## Nested Arrays
+
+You can nest array decoders to validate multi-dimensional arrays.
+
+```typescript
+import { array, number } from 'decoders';
+
+// 2D array (matrix) of numbers
+const matrixDecoder = array(array(number));
+
+matrixDecoder.verify([
+  [1, 2, 3],
+  [4, 5, 6],
+  [7, 8, 9],
+]);
+// ✓ OK
+
+matrixDecoder.verify([
+  [1, 2, 3],
+  [4, 'five', 6], // Error: Must be number (at index 1)
+]);
+```
+
+## Arrays of Objects
+
+Combine `array()` with `object()` for complex data structures.
+
+```typescript
+import { array, object, string, number } from 'decoders';
+
+const userDecoder = object({
+  name: string,
+  age: number,
+});
+
+const usersDecoder = array(userDecoder);
+
+usersDecoder.verify([
+  { name: 'Alice', age: 30 },
+  { name: 'Bob', age: 25 },
+]);
+// ✓ OK
+
+usersDecoder.verify([
+  { name: 'Alice', age: 30 },
+  { name: 'Bob' }, // Error: Missing key: "age" (at index 1)
+]);
+```
+
+## Mixed-Type Tuples
+
+Tuples can contain different types, including objects and arrays.
+
+```typescript
+import { tuple, string, number, array, object } from 'decoders';
+
+// API response: [status, data, metadata]
+const apiResponseDecoder = tuple(
+  string, // status
+  array(object({ id: number, name: string })), // data
+  object({ timestamp: number }) // metadata
+);
+
+apiResponseDecoder.verify([
+  'success',
+  [
+    { id: 1, name: 'Item 1' },
+    { id: 2, name: 'Item 2' },
+  ],
+  { timestamp: 1234567890 },
+]);
+// ✓ OK
+```
+
+## Validating Array Size
+
+Use `sized()` to enforce length constraints on arrays.
+
+```typescript
+import { array, string, sized } from 'decoders';
+
+// Exactly 3 elements
+const rgbDecoder = sized(array(number), { size: 3 });
+
+rgbDecoder.verify([255, 128, 0]); // ✓ OK
+rgbDecoder.verify([255, 128]); // Error: size violation
+
+// Minimum length
+const atLeastTwoDecoder = sized(array(string), { min: 2 });
+
+atLeastTwoDecoder.verify(['one', 'two', 'three']); // ✓ OK
+atLeastTwoDecoder.verify(['one']); // Error: size violation
+
+// Maximum length
+const atMostFiveDecoder = sized(array(string), { max: 5 });
+
+atMostFiveDecoder.verify(['a', 'b', 'c']); // ✓ OK
+atMostFiveDecoder.verify(['a', 'b', 'c', 'd', 'e', 'f']); // Error: size violation
+
+// Range
+const rangeDecoder = sized(array(number), { min: 2, max: 5 });
+
+rangeDecoder.verify([1, 2, 3]); // ✓ OK
+rangeDecoder.verify([1]); // Error: size violation
+rangeDecoder.verify([1, 2, 3, 4, 5, 6]); // Error: size violation
+```
+
+## Error Messages
+
+Array decoders provide helpful error messages with index information:
+
+```typescript
+import { array, object, string, number } from 'decoders';
+
+const productsDecoder = array(object({
+  name: string,
+  price: number,
+}));
+
+try {
+  productsDecoder.verify([
+    { name: 'Widget', price: 9.99 },
+    { name: 'Gadget', price: 'free' }, // wrong type
+    { name: 'Doohickey', price: 4.99 },
+  ]);
+} catch (error) {
+  console.error(error.message);
+  // Error message includes: "Must be number (at index 1)"
+  // This tells you exactly which array element failed
+}
+```
+
+## Converting Arrays to Sets
+
+Use `setFromArray()` to validate an array and convert it to a Set.
+
+```typescript
+import { setFromArray, string } from 'decoders';
+
+const uniqueTagsDecoder = setFromArray(string);
+
+uniqueTagsDecoder.verify(['javascript', 'typescript', 'javascript']);
+// Returns: Set { 'javascript', 'typescript' }
+// Note: duplicates are automatically removed
+```
+
+## Transforming Arrays
+
+Combine array decoders with transformations for powerful validation:
+
+```typescript
+import { array, string } from 'decoders';
+
+// Split comma-separated string into array
+const csvDecoder = string
+  .transform(s => s.split(','))
+  .pipe(array(string));
+
+csvDecoder.verify('apple,banana,orange');
+// Returns: ['apple', 'banana', 'orange']
+
+// Validate and sort array
+const sortedNumbersDecoder = array(number)
+  .transform(arr => [...arr].sort((a, b) => a - b));
+
+sortedNumbersDecoder.verify([3, 1, 4, 1, 5, 9]);
+// Returns: [1, 1, 3, 4, 5, 9]
+```
+
+## Type Inference
+
+TypeScript correctly infers array types:
+
+```typescript
+import { array, object, string, number } from 'decoders';
+import type { DecoderType } from 'decoders';
+
+const todosDecoder = array(object({
+  id: number,
+  title: string,
+  completed: boolean,
+}));
+
+type Todos = DecoderType<typeof todosDecoder>;
+// Type is:
+// Array<{
+//   id: number;
+//   title: string;
+//   completed: boolean;
+// }>
+```
+
+## Next Steps
+
+- Learn how to create [custom decoders](/guides/custom-decoders)
+- Explore [transformations](/guides/transformations) to modify validated data
+- Add [refinements](/guides/refinements) for custom validation logic

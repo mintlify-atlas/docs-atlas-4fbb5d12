@@ -1,0 +1,441 @@
+---
+title: Error Handling
+description: Learn how to handle validation failures gracefully with the Result type, error annotations, and formatted error messages.
+---
+
+Effective error handling is critical when validating untrusted data. Decoders provides multiple approaches to handle validation failures, from type-safe results to detailed error messages.
+
+## The Result Type
+
+The `Result<T, E>` type is a discriminated union that explicitly represents success or failure:
+
+```typescript
+type Result<T, E> = Ok<T> | Err<E>;
+
+type Ok<T> = {
+  readonly ok: true;
+  readonly value: T;
+  readonly error?: never;
+};
+
+type Err<E> = {
+  readonly ok: false;
+  readonly value?: never;
+  readonly error: E;
+};
+```
+
+For decoders, the error type is `Annotation`, so `DecodeResult<T>` is an alias for `Result<T, Annotation>`.
+
+## Handling Results Safely
+
+Use the `.decode()` method to get a `Result` that never throws:
+
+```typescript
+import { string, number, object } from 'decoders';
+
+const userDecoder = object({
+  id: number,
+  name: string,
+});
+
+const result = userDecoder.decode(externalData);
+
+if (result.ok) {
+  // Success case - TypeScript knows result.value exists
+  console.log(`User ID: ${result.value.id}`);
+  console.log(`User name: ${result.value.name}`);
+} else {
+  // Failure case - TypeScript knows result.error exists
+  console.error('Validation failed:', result.error);
+}
+```
+
+The `ok` field is a discriminant that lets TypeScript narrow the type:
+- When `ok === true`, you can access `value`
+- When `ok === false`, you can access `error`
+
+## Try/Catch with .verify()
+
+For simpler control flow, use `.verify()` which throws on failure:
+
+```typescript
+import { object, string, number } from 'decoders';
+
+const userDecoder = object({
+  id: number,
+  name: string,
+});
+
+try {
+  const user = userDecoder.verify(externalData);
+  console.log(`Welcome, ${user.name}!`);
+} catch (error) {
+  console.error('Invalid user data:', error.message);
+  // Handle the error appropriately
+}
+```
+
+The thrown error is a proper `Error` instance with a formatted message.
+
+## Optional Values with .value()
+
+When you don't need the error message, use `.value()` which returns `undefined` on failure:
+
+```typescript
+import { number } from 'decoders';
+
+const input = getUserInput();
+const age = number.value(input);
+
+if (age !== undefined) {
+  console.log(`Age: ${age}`);
+} else {
+  console.log('Invalid age provided');
+}
+```
+
+This is useful for optional parsing where you have a fallback:
+
+```typescript
+import { number } from 'decoders';
+
+const port = number.value(process.env.PORT) ?? 3000;
+const timeout = number.value(process.env.TIMEOUT) ?? 5000;
+```
+
+## Understanding Annotations
+
+When validation fails, decoders create an `Annotation` that captures:
+
+1. The actual value that failed
+2. An error message explaining why
+3. For complex types, nested annotations for each failing field
+
+There are four types of annotations:
+
+```typescript
+type Annotation =
+  | ScalarAnnotation    // Primitives: string, number, boolean, null, undefined
+  | ObjectAnnotation    // Objects with field-level errors
+  | ArrayAnnotation     // Arrays with item-level errors
+  | OpaqueAnnotation    // Functions, Promises, custom classes
+```
+
+### Scalar Annotations
+
+For simple value failures:
+
+```typescript
+import { string } from 'decoders';
+
+const result = string.decode(123);
+
+if (!result.ok) {
+  console.log(result.error);
+  // {
+  //   type: 'scalar',
+  //   value: 123,
+  //   text: 'Must be string'
+  // }
+}
+```
+
+### Object Annotations
+
+For object validation failures, annotations include field-level errors:
+
+```typescript
+import { object, string, number } from 'decoders';
+
+const decoder = object({
+  id: number,
+  name: string,
+});
+
+const result = decoder.decode({
+  id: 'not-a-number',
+  name: 123,
+});
+
+if (!result.ok) {
+  console.log(result.error);
+  // {
+  //   type: 'object',
+  //   fields: Map(2) {
+  //     'id' => { type: 'scalar', value: 'not-a-number', text: 'Must be number' },
+  //     'name' => { type: 'scalar', value: 123, text: 'Must be string' }
+  //   },
+  //   text: undefined
+  // }
+}
+```
+
+### Array Annotations
+
+For array validation failures:
+
+```typescript
+import { array, number } from 'decoders';
+
+const result = array(number).decode([1, 'two', 3, 'four']);
+
+if (!result.ok) {
+  console.log(result.error);
+  // {
+  //   type: 'array',
+  //   items: [
+  //     { type: 'scalar', value: 1, text: undefined },      // OK
+  //     { type: 'scalar', value: 'two', text: 'Must be number' },
+  //     { type: 'scalar', value: 3, text: undefined },      // OK
+  //     { type: 'scalar', value: 'four', text: 'Must be number' }
+  //   ],
+  //   text: undefined
+  // }
+}
+```
+
+## Error Formatting
+
+Decoders provides built-in formatters to create human-readable error messages:
+
+### Inline Format (Default)
+
+The `formatInline` formatter shows the invalid value with error annotations:
+
+```typescript
+import { object, string, number, formatInline } from 'decoders';
+
+const userDecoder = object({
+  id: number,
+  name: string,
+  email: string,
+});
+
+const result = userDecoder.decode({
+  id: '123',
+  name: 'Alice',
+  email: 42,
+});
+
+if (!result.ok) {
+  console.log(formatInline(result.error));
+  // Output:
+  // {
+  //   id: "123",
+  //       ^^^^^ Must be number
+  //   name: "Alice",
+  //   email: 42,
+  //          ^^ Must be string
+  // }
+}
+```
+
+This is the default formatter used by `.verify()`.
+
+### Short Format
+
+The `formatShort` formatter provides concise, line-by-line error summaries:
+
+```typescript
+import { object, string, number, formatShort } from 'decoders';
+
+const result = userDecoder.decode({
+  id: '123',
+  email: 42,
+});
+
+if (!result.ok) {
+  console.log(formatShort(result.error));
+  // Output:
+  // Value at key "id": Must be number
+  // Value at key "email": Must be string
+  // Missing key: "name"
+}
+```
+
+### Custom Formatters
+
+You can write custom formatters to match your application's needs:
+
+```typescript
+import type { Formatter } from 'decoders';
+import { object, string, number } from 'decoders';
+
+const jsonFormatter: Formatter = (annotation) => {
+  return JSON.stringify({
+    error: 'Validation failed',
+    details: annotation,
+  }, null, 2);
+};
+
+const userDecoder = object({
+  id: number,
+  name: string,
+});
+
+try {
+  userDecoder.verify(invalidData, jsonFormatter);
+} catch (error) {
+  console.error(error.message); // JSON-formatted error
+}
+```
+
+## Missing Fields
+
+When required fields are missing, the error message clearly indicates which keys are absent:
+
+```typescript
+import { object, string, number } from 'decoders';
+
+const decoder = object({
+  id: number,
+  name: string,
+  email: string,
+});
+
+const result = decoder.decode({ id: 1 });
+
+if (!result.ok) {
+  console.log(formatShort(result.error));
+  // Missing keys: "name", "email"
+}
+```
+
+## Collecting All Errors
+
+Decoders validates the entire input and reports **all errors at once**, not just the first error:
+
+```typescript
+import { object, string, number } from 'decoders';
+
+const decoder = object({
+  id: number,
+  name: string,
+  email: string,
+  age: number,
+});
+
+const result = decoder.decode({
+  id: 'invalid',
+  name: 123,
+  email: true,
+  age: 'invalid',
+});
+
+if (!result.ok) {
+  console.log(formatShort(result.error));
+  // Value at key "id": Must be number
+  // Value at key "name": Must be string
+  // Value at key "email": Must be string
+  // Value at key "age": Must be number
+}
+```
+
+This gives users complete feedback about all validation issues in a single pass.
+
+## Nested Error Reporting
+
+Errors in deeply nested structures are reported with their full path:
+
+```typescript
+import { object, string, number, array } from 'decoders';
+
+const decoder = object({
+  user: object({
+    name: string,
+    address: object({
+      city: string,
+      zipCode: number,
+    }),
+  }),
+  tags: array(string),
+});
+
+const result = decoder.decode({
+  user: {
+    name: 'Alice',
+    address: {
+      city: 'NYC',
+      zipCode: 'invalid',
+    },
+  },
+  tags: ['a', 123, 'c'],
+});
+
+if (!result.ok) {
+  console.log(formatShort(result.error));
+  // Value at keypath "user.address.zipCode": Must be number
+  // Value at index 1: Must be string
+}
+```
+
+## Best Practices
+
+### Use .decode() for Control Flow
+
+When you need fine-grained error handling:
+
+```typescript
+import { object, string, number } from 'decoders';
+
+function processUserData(data: unknown) {
+  const result = userDecoder.decode(data);
+  
+  if (result.ok) {
+    return { success: true, user: result.value };
+  } else {
+    return {
+      success: false,
+      errors: formatShort(result.error),
+    };
+  }
+}
+```
+
+### Use .verify() for Simple Cases
+
+When you want to fail fast:
+
+```typescript
+import { object, string, number } from 'decoders';
+
+function handleRequest(body: unknown) {
+  const user = userDecoder.verify(body);
+  // If we get here, user is valid
+  return saveUser(user);
+}
+```
+
+### Use .value() for Optional Parsing
+
+When you have sensible defaults:
+
+```typescript
+import { number, string } from 'decoders';
+
+const config = {
+  port: number.value(process.env.PORT) ?? 3000,
+  host: string.value(process.env.HOST) ?? 'localhost',
+};
+```
+
+### Custom Error Messages
+
+Provide context-specific error messages:
+
+```typescript
+import { number } from 'decoders';
+
+const ageDecoder = number
+  .refine(n => n >= 0, 'Age cannot be negative')
+  .refine(n => n <= 150, 'Age must be realistic');
+
+const result = ageDecoder.decode(-5);
+if (!result.ok) {
+  console.log(formatShort(result.error));
+  // Age cannot be negative
+}
+```
+
+By leveraging these error handling patterns, you can build robust validation that provides clear feedback to users and handles edge cases gracefully.

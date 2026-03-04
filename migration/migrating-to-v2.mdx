@@ -1,0 +1,254 @@
+---
+title: 'Migrating to v2'
+description: 'Complete guide for upgrading from decoders v1 to v2'
+---
+
+Decoders v2 has been rewritten to be simpler, smaller, and more efficient. Conceptually, it still works the same way as v1, but some of the APIs have been rewritten in a backward incompatible manner. As such, you may have to make some code changes to migrate to v2.
+
+<Note>
+  If you run into issues that aren't covered by this migration guide, please [open an issue](https://github.com/nvie/decoders/issues/new?assignees=nvie&labels=question&template=need-help-migrating-to-2-x.md&title=Migration+help+needed) and we're happy to help!
+</Note>
+
+## Checklist
+
+<Steps>
+  <Step title="Install decoders v2">
+    ```bash
+    npm install decoders
+    ```
+  </Step>
+  
+  <Step title="Uninstall deprecated dependencies">
+    If applicable, uninstall debrief and lemons:
+    ```bash
+    npm uninstall debrief lemons
+    ```
+  </Step>
+  
+  <Step title="Stop calling decoders">
+    Decoders are no longer functions - see [instructions](#stop-calling-decoders)
+  </Step>
+  
+  <Step title="Rename decoders">
+    Rewrite patterns/imports for decoders that have been renamed - see [instructions](#rename-some-decoders)
+  </Step>
+  
+  <Step title="Rewrite guard() usage">
+    All uses of `guard()` need to be rewritten - see [instructions](#guards-are-no-longer-a-thing)
+  </Step>
+  
+  <Step title="Update lemons/debrief imports (if applicable)">
+    See [migration instructions](#rewriting-imports-from-lemons-or-debrief)
+  </Step>
+  
+  <Step title="Flow users: Update $DecoderType">
+    Rewrite use of `$DecoderType` - see [instructions](#rewrite-use-of-decodertype)
+  </Step>
+</Steps>
+
+## Stop "calling" decoders
+
+Decoders in 1.x were functions. In 2.x they're more like classes.
+
+<CodeGroup>
+```typescript v1.x (Old)
+// ❌ 1.x
+const result = mydecoder(externalData);
+```
+
+```typescript v2.x (New)
+// ✅ 2.x
+const result = mydecoder.decode(externalData);
+//                       ^^^^^^
+```
+</CodeGroup>
+
+## Rename some decoders
+
+Some decoders have been renamed. See the table below. You can do a simple "search & replace" command for these:
+
+| Replace this v1 pattern              | → | ...with this v2 API                        | Notes                                                  |
+| :----------------------------------- | - | :----------------------------------------- | :----------------------------------------------------- |
+| `map(mydecoder, ...)`                | → | `mydecoder.transform(...)`                 | [migration instructions](#map-is-now-transform)        |
+| `compose(mydecoder, predicate(...))` | → | `mydecoder.refine(...)`                    | [migration instructions](#compose-predicate-is-now-refine) |
+| `describe(mydecoder, ...)`           | → | `mydecoder.describe(...)`                  |                                                        |
+| `either`, `either3`, ..., `either9`  | → | `either`                                   |                                                        |
+| `tuple1`, `tuple2`, ... `tuple6`     | → | `tuple`                                    |                                                        |
+| `dispatch`                           | → | `taggedUnion`                              |                                                        |
+| `url(...)`                           | → | `httpsUrl` / `url` (signature has changed) | [migration instructions](#signature-of-url-has-changed) |
+
+## `map()` is now `.transform()`
+
+The `map()` decoder has been renamed to the `.transform()` decoder method:
+
+<CodeGroup>
+```typescript v1.x (Old)
+// ❌ 1.x
+import { string } from 'decoders';
+const uppercase = map(string, (s) => s.toUpperCase());
+```
+
+```typescript v2.x (New)
+// ✅ 2.x
+const uppercase = string.transform((s) => s.toUpperCase());
+```
+</CodeGroup>
+
+## `compose()` + `predicate()` is now `.refine()`
+
+The `compose()` and `predicate()` decoders from v1 were mostly used in tandem and used to add additional checks to existing decoders. Predicates have been moved to the `.refine()` decoder method:
+
+<CodeGroup>
+```typescript v1.x (Old)
+// ❌ 1.x
+import { compose, number, predicate } from 'decoders';
+const odd = compose(
+  number,
+  predicate((n) => n % 2 !== 0, 'Must be odd'),
+);
+```
+
+```typescript v2.x (New)
+// ✅ 2.x
+const odd = number.refine((n) => n % 2 !== 0, 'Must be odd');
+```
+</CodeGroup>
+
+## Guards are no longer a thing
+
+<Warning>
+  The concept of "guards" has been removed entirely. The following APIs have been removed:
+  - The function `guard()`
+  - The type `Guard<T>`
+  - The helper type `GuardType<T>`
+</Warning>
+
+Instead, all decoders now have a `.verify()` method which does the exact same thing.
+
+<CodeGroup>
+```typescript v1.x (Old)
+// ❌ 1.x
+import { guard, Guard } from 'decoders';
+
+const verify: Guard<Whatever> = guard(whatever);
+const value: Whatever = verify(externalData);
+```
+
+```typescript v2.x (New)
+// ✅ 2.x
+const value: Whatever = whatever.verify(externalData);
+```
+</CodeGroup>
+
+## Signature of `url` has changed
+
+The signature of the old `url` decoder has changed. Compare [old](https://github.com/nvie/decoders/blob/v1.25.5/src/string.js#L55-L66) vs [new](https://decoders.cc/api.html#url).
+
+<Warning>
+  Key changes to `url`:
+  1. `url()` is no longer a function taking a list of schemes
+  2. `url` now returns a `URL` instance, no longer a string
+  3. There's no direct way for decoding custom schemas anymore, but you can [reimplement the old decoder yourself](https://gist.github.com/nvie/9e912992102b44b5c843c26ee3b19450)
+</Warning>
+
+| Replace this v1 pattern | → | ...with this v2 API                                                    |
+| :---------------------- | - | :--------------------------------------------------------------------- |
+| `url()`                 | → | [`httpsUrl`](https://decoders.cc/api.html#httpsUrl)                    |
+| `url([])`               | → | [`url`](https://decoders.cc/api.html#url)                              |
+| `url(['git'])`          | → | Define manually ([example](https://gist.github.com/nvie/9e912992102b44b5c843c26ee3b19450)) |
+
+## Rewriting imports from `lemons` or `debrief`
+
+<Note>
+  This section only applies **if you used the `lemons` or `debrief` library directly** to build custom decoders. If not, just ignore this section.
+</Note>
+
+Decoders used to depend on external libraries `lemons` and `debrief`, but this is no longer the case in v2. You no longer have to create `Ok`/`Err` results manually when defining your own decoders, nor deal with annotating inputs manually.
+
+Take this example decoder, which defines a `Buffer` decoder:
+
+<CodeGroup>
+```typescript v1.x (Old)
+// ❌ 1.x
+import { Err, Ok } from 'lemons/Result';
+import { annotate } from 'debrief';
+import { Decoder } from 'decoders';
+
+export const buffer: Decoder<Buffer> = (blob) =>
+  Buffer.isBuffer(blob) ? Ok(blob) : Err(annotate(blob, 'Must be Buffer'));
+```
+
+```typescript v2.x (New)
+// ✅ 2.x
+import { define } from 'decoders';
+
+export const buffer: Decoder<Buffer> = define((blob, ok, err) =>
+  Buffer.isBuffer(blob) ? ok(blob) : err('Must be Buffer'),
+);
+```
+</CodeGroup>
+
+In 2.x the `ok` and `err` helpers get passed to you by `.define()`, so you no longer have to import them yourself. Also, notice how you no longer have to manually annotate the blob in simple cases like this. You can simply return a string `err` message directly.
+
+### If you are accessing `Result` instances directly
+
+The `Result<T>` type is no longer a class, but a very [simple data structure](https://github.com/nvie/decoders/blob/main/src/types/result.d.ts#L1-L13). This plays well with TypeScript as well as helps to tree-shake many unused methods from your bundle.
+
+As such, methods previously available on Result instances no longer exist. Direct access of the `ok`, `value`, and `error` properties are now favored.
+
+Suggested changes:
+
+```typescript
+import { err, ok } from 'decoders';
+```
+
+| Replace this v1 pattern  | → | ...with this v2 API                             |
+| :----------------------- | - | :---------------------------------------------- |
+| `result.andThen(f)`      | → | `result.ok ? f(result.value) : result`          |
+| `result.dispatch(f, g)`  | → | `result.ok ? f(result.value) : g(result.error)` |
+| `result.errValue()`      | → | `result.error`                                  |
+| `result.expect()`        | → | _removed_                                       |
+| `result.isErr()`         | → | `!result.ok`                                    |
+| `result.isOk()`          | → | `result.ok`                                     |
+| `result.map(f)`          | → | `result.ok ? ok(f(result.value)) : result`      |
+| `result.mapError(g)`     | → | `result.ok ? result : err(g(result.error))`     |
+| `result.toString()`      | → | _removed_                                       |
+| `result.unwrap()`        | → | _removed_ (see below)                           |
+| `result.value() ?? xxx`  | → | `decoder.value(...) ?? xxx`                     |
+| `result.value() \|\| xxx`| → | `decoder.value(...) \|\| xxx`                   |
+| `result.withDefault(xxx)`| → | `decoder.value(...) ?? xxx`                     |
+
+If you're using `result.unwrap()` it's probably because you're using it like so:
+
+<CodeGroup>
+```typescript v1.x (Old)
+// ❌ 1.x
+const result = mydecoder(externalData);
+result.unwrap(); // Might throw
+```
+
+```typescript v2.x (New)
+// ✅ 2.x
+mydecoder.verify(externalData); // Might throw
+```
+</CodeGroup>
+
+You will likely no longer need it, now that the decoder method `.verify()` exists.
+
+## Rewrite use of `$DecoderType`
+
+<Note>
+  **Flow users only!** The helper type `$DecoderType` has now been simplified. The `$`-sign has been removed from the name, and you no longer have to `$Call<>` it.
+  
+  For **TypeScript users** no changes are needed.
+</Note>
+
+```javascript
+const mydecoder = array(whatever);
+
+// ❌ Old
+type X = $Call<$DecoderType, typeof mydecoder>; // Array<Whatever>
+
+// ✅ New
+type X = DecoderType<typeof mydecoder>; // Array<Whatever>
+```

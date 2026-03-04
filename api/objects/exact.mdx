@@ -1,0 +1,249 @@
+---
+title: exact
+description: Decode objects with validated fields, rejecting extra properties
+---
+
+## Signature
+
+```typescript
+function exact<Ds extends Record<string, Decoder<unknown>>>(
+  decoders: Ds
+): Decoder<ObjectDecoderType<Ds>>
+```
+
+## Description
+
+Like [`object()`](/api/objects/object), but will **reject** inputs that contain extra fields that are not specified explicitly.
+
+Use this decoder when you want strict validation that ensures the input contains exactly the fields you expect, no more and no less.
+
+## Type Inference
+
+The return type is identical to `object()` since both return the same shape:
+
+```typescript
+const userDecoder = exact({
+  id: number,
+  username: string,
+  email: string
+});
+
+// Inferred type:
+// {
+//   id: number;
+//   username: string;
+//   email: string;
+// }
+```
+
+## Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `decoders` | `Record<string, Decoder<unknown>>` | An object mapping field names to their respective decoders |
+
+## Returns
+
+A `Decoder<ObjectDecoderType<Ds>>` that validates the specified fields and rejects any extra fields.
+
+## Behavior
+
+- **Extra fields**: Causes decode failure
+- **Missing required fields**: Causes decode failure
+- **Missing optional fields**: Allowed
+- **Invalid field values**: Causes decode failure with field-specific errors
+
+## Examples
+
+### Basic Usage
+
+```typescript
+import { exact, string, number } from 'decoders';
+
+const personDecoder = exact({
+  name: string,
+  age: number
+});
+
+// Success - exactly the expected fields
+personDecoder.decode({
+  name: 'Alice',
+  age: 30
+});
+// Result: { name: 'Alice', age: 30 }
+
+// Failure - extra field present
+personDecoder.decode({
+  name: 'Alice',
+  age: 30,
+  email: 'alice@example.com'  // This causes failure
+});
+// Error: "Unexpected extra keys: 'email'"
+```
+
+### Multiple Extra Fields
+
+```typescript
+import { exact, string } from 'decoders';
+
+const decoder = exact({
+  name: string
+});
+
+decoder.decode({
+  name: 'Bob',
+  age: 25,
+  email: 'bob@example.com'
+});
+// Error: "Unexpected extra keys: 'age', 'email'"
+```
+
+### With Optional Fields
+
+```typescript
+import { exact, string, optional } from 'decoders';
+
+const userDecoder = exact({
+  username: string,
+  bio: optional(string)
+});
+
+// Success - missing optional field is fine
+userDecoder.decode({ username: 'charlie' });
+// Result: { username: 'charlie' }
+
+// Success - optional field provided
+userDecoder.decode({ username: 'charlie', bio: 'Developer' });
+// Result: { username: 'charlie', bio: 'Developer' }
+
+// Failure - extra field even with optional present
+userDecoder.decode({ 
+  username: 'charlie', 
+  bio: 'Developer',
+  age: 30  // Not allowed
+});
+// Error: "Unexpected extra keys: 'age'"
+```
+
+### Nested Exact Objects
+
+```typescript
+import { exact, string, number } from 'decoders';
+
+const configDecoder = exact({
+  name: string,
+  settings: exact({
+    theme: string,
+    notifications: boolean
+  })
+});
+
+// Success
+configDecoder.decode({
+  name: 'My App',
+  settings: {
+    theme: 'dark',
+    notifications: true
+  }
+});
+
+// Failure - extra field in nested object
+configDecoder.decode({
+  name: 'My App',
+  settings: {
+    theme: 'dark',
+    notifications: true,
+    language: 'en'  // Not allowed in nested exact object
+  }
+});
+// Error in settings: "Unexpected extra keys: 'language'"
+```
+
+### API Validation
+
+```typescript
+import { exact, string, number, email } from 'decoders';
+
+// Strict API request validation
+const createUserRequestDecoder = exact({
+  email: email,
+  password: string,
+  name: string
+});
+
+// This prevents clients from sending unexpected fields
+// that might cause security issues or unexpected behavior
+createUserRequestDecoder.decode({
+  email: 'user@example.com',
+  password: 'secret123',
+  name: 'Jane Doe',
+  isAdmin: true  // Potential security issue - rejected!
+});
+// Error: "Unexpected extra keys: 'isAdmin'"
+```
+
+### Empty Object
+
+```typescript
+import { exact } from 'decoders';
+
+const emptyDecoder = exact({});
+
+// Success - no fields expected, none provided
+emptyDecoder.decode({});
+// Result: {}
+
+// Failure - any field is extra
+emptyDecoder.decode({ foo: 'bar' });
+// Error: "Unexpected extra keys: 'foo'"
+```
+
+## Error Messages
+
+The decoder provides clear error messages:
+
+- **Single extra field**: `Unexpected extra keys: 'fieldName'`
+- **Multiple extra fields**: `Unexpected extra keys: 'field1', 'field2'`
+- **Missing required fields**: Same as `object()` - `Missing key: 'fieldName'`
+- **Invalid field values**: Includes the nested decoder's error message
+- **Not an object**: `Must be an object`
+
+## When to Use
+
+Use `exact()` when:
+
+- Validating API requests where extra fields might indicate client errors
+- Parsing configuration files where typos should be caught
+- Processing data where unexpected fields could cause bugs
+- Ensuring data conforms to a strict schema
+- Security is a concern and extra fields could be malicious
+
+## When Not to Use
+
+Avoid `exact()` when:
+
+- Working with evolving APIs where new fields might be added
+- You want forward compatibility with future schema versions
+- Processing data from external sources you don't control
+- Extra fields are harmless and can be safely ignored
+
+In these cases, use [`object()`](/api/objects/object) instead.
+
+## Implementation Notes
+
+- Checks for extra keys **before** running the field decoders
+- Uses the `pojo.reject()` method to pre-validate the key set
+- Defers to `object()` for the actual field decoding after key validation
+- Computes the set of allowed keys at decoder definition time for performance
+
+## Related Decoders
+
+- [`object`](/api/objects/object) - Like `exact()` but ignores extra fields
+- [`inexact`](/api/objects/inexact) - Like `object()` but passes through extra fields
+- [`pojo`](/api/primitives/pojo) - Accepts any plain object without validation
+
+## See Also
+
+- [Optional fields](/guides/optional-fields)
+- [Error handling](/guides/error-handling)
+- [API validation patterns](/guides/api-validation)

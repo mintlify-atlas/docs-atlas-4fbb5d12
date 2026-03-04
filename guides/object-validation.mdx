@@ -1,0 +1,337 @@
+---
+title: Object Validation
+description: Validate object shapes and properties using object decoders
+---
+
+Object validation is one of the most common use cases for decoders. This guide covers how to validate object structures, handle extra fields, and work with complex nested objects.
+
+## Basic Object Validation
+
+The `object()` decoder validates that an input is a plain JavaScript object and validates its fields according to the provided schema.
+
+```typescript
+import { object, string, number } from 'decoders';
+
+const userDecoder = object({
+  name: string,
+  age: number,
+});
+
+userDecoder.verify({
+  name: 'Alice',
+  age: 30,
+}); // { name: 'Alice', age: 30 }
+
+userDecoder.verify({
+  name: 'Bob',
+  age: '25', // Error: age must be number
+});
+
+userDecoder.verify({
+  name: 'Charlie',
+  // Error: Missing key: "age"
+});
+```
+
+### Extra Fields are Ignored
+
+By default, `object()` **ignores** extra fields that aren't specified in the schema. Only the fields you define are validated and returned.
+
+```typescript
+import { object, string } from 'decoders';
+
+const productDecoder = object({
+  name: string,
+});
+
+productDecoder.verify({
+  name: 'Widget',
+  price: 9.99, // extra field
+  inStock: true, // extra field
+});
+// Returns: { name: 'Widget' }
+// Note: price and inStock are stripped out
+```
+
+## Exact Objects
+
+Use `exact()` to reject objects with extra fields.
+
+```typescript
+import { exact, string, number } from 'decoders';
+
+const strictUserDecoder = exact({
+  name: string,
+  age: number,
+});
+
+strictUserDecoder.verify({
+  name: 'Alice',
+  age: 30,
+}); // ✓ OK
+
+strictUserDecoder.verify({
+  name: 'Bob',
+  age: 25,
+  email: 'bob@example.com', // Error: Unexpected extra keys: "email"
+});
+```
+
+This is useful when you want to ensure the input strictly matches your schema with no additional properties.
+
+## Inexact Objects
+
+Use `inexact()` to pass through extra fields unvalidated.
+
+```typescript
+import { inexact, string, number } from 'decoders';
+
+const flexibleUserDecoder = inexact({
+  name: string,
+  age: number,
+});
+
+const result = flexibleUserDecoder.verify({
+  name: 'Alice',
+  age: 30,
+  email: 'alice@example.com',
+  isActive: true,
+});
+
+// Returns: { name: 'Alice', age: 30, email: 'alice@example.com', isActive: true }
+// email and isActive are passed through with type 'unknown'
+```
+
+The extra fields will have type `unknown` in TypeScript, so you'll need to validate them separately if you want to use them.
+
+## Plain Objects (POJO)
+
+The `pojo` decoder accepts any plain JavaScript object without validating its contents.
+
+```typescript
+import { pojo } from 'decoders';
+
+pojo.verify({ any: 'object', with: ['any', 'structure'] }); // ✓ OK
+pojo.verify(new Date()); // Error: Must be an object
+pojo.verify([]); // Error: Must be an object
+pojo.verify('not an object'); // Error: Must be an object
+```
+
+This is useful as a building block for more complex decoders or when you need to accept arbitrary objects.
+
+## Optional Fields
+
+Use `optional()` or `nullish()` for optional object fields.
+
+```typescript
+import { object, string, number, optional, nullable } from 'decoders';
+
+const userDecoder = object({
+  name: string,
+  age: number,
+  email: optional(string), // string | undefined
+  nickname: nullable(string), // string | null
+});
+
+userDecoder.verify({
+  name: 'Alice',
+  age: 30,
+});
+// Returns: { name: 'Alice', age: 30 }
+// Note: email is omitted (not present in output)
+
+userDecoder.verify({
+  name: 'Bob',
+  age: 25,
+  email: 'bob@example.com',
+  nickname: null,
+});
+// Returns: { name: 'Bob', age: 25, email: 'bob@example.com', nickname: null }
+```
+
+### Optional Fields with Defaults
+
+```typescript
+import { object, string, optional } from 'decoders';
+
+const settingsDecoder = object({
+  theme: optional(string, 'light'),
+  language: optional(string, 'en'),
+});
+
+settingsDecoder.verify({});
+// Returns: { theme: 'light', language: 'en' }
+
+settingsDecoder.verify({ theme: 'dark' });
+// Returns: { theme: 'dark', language: 'en' }
+```
+
+## Nested Objects
+
+You can nest object decoders to validate complex structures.
+
+```typescript
+import { object, string, number } from 'decoders';
+
+const addressDecoder = object({
+  street: string,
+  city: string,
+  zipCode: string,
+});
+
+const personDecoder = object({
+  name: string,
+  age: number,
+  address: addressDecoder,
+});
+
+personDecoder.verify({
+  name: 'Alice',
+  age: 30,
+  address: {
+    street: '123 Main St',
+    city: 'Springfield',
+    zipCode: '12345',
+  },
+});
+// ✓ OK
+
+personDecoder.verify({
+  name: 'Bob',
+  age: 25,
+  address: {
+    street: '456 Oak Ave',
+    // Error: Missing keys: "city", "zipCode"
+  },
+});
+```
+
+## Adding Hardcoded Fields
+
+Use `always()` to add fields that always return a constant value, regardless of the input.
+
+```typescript
+import { object, string, always } from 'decoders';
+
+const apiResponseDecoder = object({
+  data: string,
+  version: always('v1'), // Always returns 'v1'
+  timestamp: always(() => new Date()), // Always returns current date
+});
+
+apiResponseDecoder.verify({ data: 'hello' });
+// Returns: { data: 'hello', version: 'v1', timestamp: <current Date> }
+```
+
+## Disallowing Fields
+
+Use `never()` to explicitly reject certain fields.
+
+```typescript
+import { object, string, never } from 'decoders';
+
+const publicUserDecoder = object({
+  username: string,
+  email: string,
+  password: never('Password field not allowed in public API'),
+});
+
+publicUserDecoder.verify({
+  username: 'alice',
+  email: 'alice@example.com',
+});
+// ✓ OK
+
+publicUserDecoder.verify({
+  username: 'bob',
+  email: 'bob@example.com',
+  password: 'secret123',
+});
+// Error: Password field not allowed in public API
+```
+
+## Working with Records and Mappings
+
+For objects with dynamic keys, use `record()` or `mapping()`.
+
+```typescript
+import { record, mapping, string, number } from 'decoders';
+
+// Record: string keys to values of a specific type
+const scoresDecoder = record(number);
+
+scoresDecoder.verify({
+  alice: 95,
+  bob: 87,
+  charlie: 92,
+});
+// Returns: { alice: 95, bob: 87, charlie: 92 }
+
+// Mapping: specific key type to value type
+const idToNameDecoder = mapping(string);
+
+idToNameDecoder.verify(new Map([
+  ['id1', 'Alice'],
+  ['id2', 'Bob'],
+]));
+// Returns: Map { 'id1' => 'Alice', 'id2' => 'Bob' }
+```
+
+## Error Messages
+
+When validation fails, decoders provide detailed error messages:
+
+```typescript
+import { object, string, number } from 'decoders';
+
+const userDecoder = object({
+  name: string,
+  age: number,
+  email: string,
+});
+
+try {
+  userDecoder.verify({
+    name: 123, // wrong type
+    email: 'alice@example.com',
+    // missing 'age'
+  });
+} catch (error) {
+  console.error(error.message);
+  // Error includes:
+  // - Field 'name': Must be string
+  // - Missing key: "age"
+}
+```
+
+## Type Inference
+
+TypeScript automatically infers the correct type from your decoder:
+
+```typescript
+import { object, string, number, optional } from 'decoders';
+
+const userDecoder = object({
+  name: string,
+  age: number,
+  email: optional(string),
+});
+
+// Type is inferred as:
+// {
+//   name: string;
+//   age: number;
+//   email?: string;
+// }
+type User = typeof userDecoder extends Decoder<infer T> ? T : never;
+
+// Or use the DecoderType helper
+import type { DecoderType } from 'decoders';
+type User = DecoderType<typeof userDecoder>;
+```
+
+## Next Steps
+
+- Learn about [array validation](/guides/array-validation) for lists and tuples
+- Explore [transformations](/guides/transformations) to modify validated data
+- Add [refinements](/guides/refinements) for custom validation logic

@@ -1,0 +1,190 @@
+---
+title: Range Decoders
+description: Decoders for constraining numbers to specific ranges
+---
+
+## min
+
+Accepts numbers greater than or equal to the given minimum.
+
+```typescript
+function min(min: number, decoder?: Decoder<number>): Decoder<number>
+```
+
+### Parameters
+
+- `min` - The minimum acceptable value (inclusive)
+- `decoder` - Optional base decoder (defaults to `number`)
+
+### Validation Rules
+
+- Value must be greater than or equal to `min`
+- Inherits validation from the base decoder
+
+### Examples
+
+```typescript
+import { min, integer } from 'decoders';
+
+// Basic usage with default number decoder
+const minTen = min(10);
+minTen.decode(15);   // ✓ Ok(15)
+minTen.decode(10);   // ✓ Ok(10)
+minTen.decode(5);    // ✗ Error: "Too low, must be at least 10"
+
+// Combine with integer decoder
+const minTenInteger = min(10, integer);
+minTenInteger.decode(15);    // ✓ Ok(15)
+minTenInteger.decode(10.5);  // ✗ Error: "Number must be an integer"
+minTenInteger.decode(5);     // ✗ Error: "Too low, must be at least 10"
+
+// Negative minimum
+const minNegative = min(-5);
+minNegative.decode(-3);   // ✓ Ok(-3)
+minNegative.decode(-10);  // ✗ Error: "Too low, must be at least -5"
+```
+
+### Use Cases
+
+- Age validation (minimum age requirement)
+- Minimum price or amount
+- Minimum quantity in stock
+- Rating systems with lower bounds
+
+---
+
+## max
+
+Accepts numbers less than or equal to the given maximum.
+
+```typescript
+function max(max: number, decoder?: Decoder<number>): Decoder<number>
+```
+
+### Parameters
+
+- `max` - The maximum acceptable value (inclusive)
+- `decoder` - Optional base decoder (defaults to `number`)
+
+### Validation Rules
+
+- Value must be less than or equal to `max`
+- Inherits validation from the base decoder
+
+### Examples
+
+```typescript
+import { max, integer } from 'decoders';
+
+// Basic usage with default number decoder
+const maxHundred = max(100);
+maxHundred.decode(50);    // ✓ Ok(50)
+maxHundred.decode(100);   // ✓ Ok(100)
+maxHundred.decode(150);   // ✗ Error: "Too high, must be at most 100"
+
+// Combine with integer decoder
+const maxHundredInteger = max(100, integer);
+maxHundredInteger.decode(50);     // ✓ Ok(50)
+maxHundredInteger.decode(50.5);   // ✗ Error: "Number must be an integer"
+maxHundredInteger.decode(150);    // ✗ Error: "Too high, must be at most 100"
+```
+
+### Use Cases
+
+- Maximum file size limits
+- Maximum price or budget
+- Percentage caps (e.g., max 100)
+- Rate limiting thresholds
+
+---
+
+## between
+
+Accepts numbers within the given range (bounds are inclusive).
+
+```typescript
+function between(
+  min: number,
+  max: number,
+  decoder?: Decoder<number>
+): Decoder<number>
+```
+
+### Parameters
+
+- `min` - The minimum acceptable value (inclusive)
+- `max` - The maximum acceptable value (inclusive)
+- `decoder` - Optional base decoder (defaults to `number`)
+
+### Validation Rules
+
+- Value must be greater than or equal to `min`
+- Value must be less than or equal to `max`
+- Inherits validation from the base decoder
+
+### Examples
+
+```typescript
+import { between, integer } from 'decoders';
+
+// Basic usage with default number decoder
+const range = between(1, 10);
+range.decode(5);     // ✓ Ok(5)
+range.decode(1);     // ✓ Ok(1)
+range.decode(10);    // ✓ Ok(10)
+range.decode(0);     // ✗ Error: "Too low, must be between 1 and 10"
+range.decode(15);    // ✗ Error: "Too high, must be between 1 and 10"
+
+// Combine with integer decoder for whole numbers only
+const integerRange = between(1, 10, integer);
+integerRange.decode(5);     // ✓ Ok(5)
+integerRange.decode(5.5);   // ✗ Error: "Number must be an integer"
+integerRange.decode(0);     // ✗ Error: "Too low, must be between 1 and 10"
+
+// Percentage range
+const percentage = between(0, 100);
+percentage.decode(50.5);   // ✓ Ok(50.5)
+percentage.decode(-5);     // ✗ Error: "Too low, must be between 0 and 100"
+```
+
+### Use Cases
+
+- Age ranges (e.g., 18-65)
+- Percentage values (0-100)
+- Rating systems (e.g., 1-5 stars)
+- Pagination limits
+- Temperature ranges
+- Port numbers (e.g., 1024-65535)
+
+---
+
+## Combining Range Decoders
+
+All range decoders accept an optional base decoder parameter, allowing you to combine range constraints with type constraints:
+
+```typescript
+import { between, min, max, integer, positiveInteger } from 'decoders';
+
+// Whole numbers between 1 and 100
+const count = between(1, 100, integer);
+
+// Non-negative integers with a minimum
+const quantity = min(1, positiveInteger);
+
+// Integer port number in valid range
+const port = between(1024, 65535, integer);
+```
+
+### Composing Multiple Constraints
+
+You can chain range decoders for complex validations:
+
+```typescript
+import { min, integer } from 'decoders';
+
+// First ensure it's an integer, then apply minimum
+const adultAge = min(18, integer);
+
+// Or use between for both bounds at once
+const validAge = between(0, 150, integer);
+```

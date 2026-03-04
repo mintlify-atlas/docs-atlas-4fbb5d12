@@ -1,0 +1,262 @@
+---
+title: taggedUnion
+---
+
+Optimized decoder for [tagged unions](https://en.wikipedia.org/wiki/Tagged_union) (also known as discriminated unions), i.e. a union of objects where one field is used as the discriminator.
+
+## Signature
+
+```typescript
+function taggedUnion<O extends Record<string, Decoder<unknown>>>(
+  field: string,
+  mapping: O
+): Decoder<DecoderType<O[keyof O]>>
+```
+
+## Type Inference
+
+`taggedUnion()` creates a discriminated union type:
+
+```typescript
+const A = object({ tag: constant('A'), foo: string });
+const B = object({ tag: constant('B'), bar: number });
+
+const decoder = taggedUnion('tag', { A, B });
+// Type: Decoder<
+//   | { tag: 'A'; foo: string }
+//   | { tag: 'B'; bar: number }
+// >
+```
+
+## Basic Usage
+
+```typescript
+import { taggedUnion, object, constant, string, number } from 'decoders';
+
+const catDecoder = object({
+  type: constant('cat'),
+  meow: string,
+});
+
+const dogDecoder = object({
+  type: constant('dog'),
+  bark: string,
+});
+
+const animalDecoder = taggedUnion('type', {
+  cat: catDecoder,
+  dog: dogDecoder,
+});
+
+animalDecoder.verify({ type: 'cat', meow: 'mew' });
+// { type: 'cat', meow: 'mew' }
+
+animalDecoder.verify({ type: 'dog', bark: 'woof' });
+// { type: 'dog', bark: 'woof' }
+
+animalDecoder.verify({ type: 'bird', chirp: 'tweet' });
+// DecodeError: Must be one of "cat", "dog"
+```
+
+## How It Works
+
+Decoding happens in two steps:
+
+1. Look at the discriminator field (e.g. `'type'`) in the incoming object
+2. Based on that value, select the appropriate decoder from the mapping
+
+```typescript
+import { taggedUnion, object, constant, string } from 'decoders';
+
+const decoder = taggedUnion('kind', {
+  success: object({ kind: constant('success'), data: string }),
+  error: object({ kind: constant('error'), message: string }),
+});
+
+// Step 1: Look at 'kind' field -> 'success'
+// Step 2: Use the 'success' decoder
+decoder.verify({ kind: 'success', data: 'hello' });
+```
+
+## vs either()
+
+`taggedUnion()` is more performant and provides better error messages than `either()` for discriminated unions:
+
+```typescript
+import { taggedUnion, either, object, constant, string } from 'decoders';
+
+const A = object({ tag: constant('A'), value: string });
+const B = object({ tag: constant('B'), value: string });
+
+// Preferred: taggedUnion (faster, better errors)
+const decoder1 = taggedUnion('tag', { A, B });
+
+// Works but less optimal:
+const decoder2 = either(A, B);
+```
+
+### Performance
+
+- `either()`: Tries each decoder one by one until one succeeds
+- `taggedUnion()`: Reads the discriminator once, then uses the correct decoder
+
+For large unions, `taggedUnion()` is significantly faster.
+
+### Error Messages
+
+```typescript
+import { taggedUnion, object, constant, string } from 'decoders';
+
+const decoder = taggedUnion('type', {
+  a: object({ type: constant('a'), foo: string }),
+  b: object({ type: constant('b'), bar: string }),
+});
+
+decoder.verify({ type: 'c' });
+// DecodeError: Must be one of "a", "b"
+//
+// With either(), you'd get:
+// Either:
+// - Must be "a"
+// - Must be "b"
+```
+
+## TypeScript Discriminated Unions
+
+`taggedUnion()` works perfectly with TypeScript's discriminated unions:
+
+```typescript
+import { taggedUnion, object, constant, string, number } from 'decoders';
+
+const shapeDecoder = taggedUnion('kind', {
+  circle: object({
+    kind: constant('circle'),
+    radius: number,
+  }),
+  rectangle: object({
+    kind: constant('rectangle'),
+    width: number,
+    height: number,
+  }),
+});
+
+type Shape = DecoderType<typeof shapeDecoder>;
+// type Shape =
+//   | { kind: 'circle'; radius: number }
+//   | { kind: 'rectangle'; width: number; height: number }
+
+const shape = shapeDecoder.verify({ kind: 'circle', radius: 5 });
+
+if (shape.kind === 'circle') {
+  shape.radius;  // TypeScript knows this exists
+}
+```
+
+## API Response Example
+
+```typescript
+import { taggedUnion, object, constant, string, array } from 'decoders';
+
+const apiResponseDecoder = taggedUnion('status', {
+  success: object({
+    status: constant('success'),
+    data: array(string),
+  }),
+  error: object({
+    status: constant('error'),
+    message: string,
+    code: number,
+  }),
+  loading: object({
+    status: constant('loading'),
+  }),
+});
+
+type ApiResponse = DecoderType<typeof apiResponseDecoder>;
+
+const response = apiResponseDecoder.verify({
+  status: 'success',
+  data: ['a', 'b', 'c'],
+});
+
+if (response.status === 'success') {
+  console.log(response.data);  // string[]
+} else if (response.status === 'error') {
+  console.log(response.message);  // string
+}
+```
+
+## Custom Discriminator Field
+
+The discriminator field name is configurable:
+
+```typescript
+import { taggedUnion, object, constant, string, number } from 'decoders';
+
+// Using 'type' as discriminator
+const decoder1 = taggedUnion('type', {
+  a: object({ type: constant('a'), value: string }),
+  b: object({ type: constant('b'), value: number }),
+});
+
+// Using 'kind' as discriminator
+const decoder2 = taggedUnion('kind', {
+  foo: object({ kind: constant('foo'), data: string }),
+  bar: object({ kind: constant('bar'), data: number }),
+});
+
+// Using '_tag' as discriminator
+const decoder3 = taggedUnion('_tag', {
+  left: object({ _tag: constant('left'), value: string }),
+  right: object({ _tag: constant('right'), value: number }),
+});
+```
+
+## Nested Tagged Unions
+
+```typescript
+import { taggedUnion, object, constant, string, number } from 'decoders';
+
+const successDecoder = taggedUnion('dataType', {
+  text: object({ dataType: constant('text'), content: string }),
+  number: object({ dataType: constant('number'), value: number }),
+});
+
+const responseDecoder = taggedUnion('status', {
+  success: object({
+    status: constant('success'),
+    result: successDecoder,
+  }),
+  error: object({
+    status: constant('error'),
+    message: string,
+  }),
+});
+```
+
+## Implementation
+
+Source: ~/workspace/source/src/unions.ts:150-163
+
+```typescript
+export function taggedUnion<O extends Record<string, Decoder<unknown>>>(
+  field: string,
+  mapping: O,
+): Decoder<DecoderType<O[keyof O]>> {
+  type T = DecoderType<O[keyof O]>;
+
+  const scout = object({
+    [field]: prep(String, oneOf(Object.keys(mapping))),
+  }).transform((o) => o[field]);
+  return select(
+    scout, // peek...
+    (key) => mapping[key] as Decoder<T>, // ...then select
+  );
+}
+```
+
+## Related Functions
+
+- `select()`: A generalization of `taggedUnion()` that works even if there isn't a single discriminator field (see ~/workspace/source/src/unions.ts:174-182)
+- `either()`: For general union types without a discriminator
+- `oneOf()`: For unions of scalar literal values

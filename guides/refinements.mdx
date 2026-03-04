@@ -1,0 +1,417 @@
+---
+title: Refinements
+description: Add custom validation rules using refine() and reject() methods
+---
+
+Refinements allow you to add custom validation logic to existing decoders. Use `.refine()` to add predicates or `.reject()` for dynamic error messages.
+
+## The refine() Method
+
+The `.refine()` method adds a validation predicate to a decoder. If the predicate returns `true`, the value is accepted; otherwise, it's rejected with the provided error message.
+
+```typescript
+import { number, string } from 'decoders';
+
+// Only accept positive numbers
+const positiveNumber = number.refine(
+  n => n > 0,
+  'Must be positive'
+);
+
+positiveNumber.verify(5); // 5
+positiveNumber.verify(0); // Error: Must be positive
+positiveNumber.verify(-3); // Error: Must be positive
+
+// Only accept non-empty strings
+const nonEmptyString = string.refine(
+  s => s.length > 0,
+  'Must be non-empty'
+);
+
+nonEmptyString.verify('hello'); // 'hello'
+nonEmptyString.verify(''); // Error: Must be non-empty
+```
+
+The predicate function receives the **validated value** (not the raw input), so you can safely use methods and properties of the expected type.
+
+## Built-in Refinements
+
+Many built-in decoders are implemented using `.refine()`:
+
+```typescript
+// From numbers.ts - integer is implemented as:
+const integer = number.refine(
+  n => Number.isInteger(n),
+  'Number must be an integer'
+);
+
+// From numbers.ts - positiveNumber is implemented as:
+const positiveNumber = number.refine(
+  n => n >= 0 && !Object.is(n, -0),
+  'Number must be positive'
+);
+
+// From strings.ts - nonEmptyString is implemented as:
+const nonEmptyString = regex(/\S/, 'Must be non-empty string');
+// which internally uses:
+const nonEmptyString = string.refine(
+  s => /\S/.test(s),
+  'Must be non-empty string'
+);
+```
+
+## Type Narrowing with refine()
+
+You can use type predicates to narrow the TypeScript type:
+
+```typescript
+import { string } from 'decoders';
+import type { Decoder } from 'decoders';
+
+// Type predicate for branded types
+type EmailAddress = string & { __brand: 'EmailAddress' };
+
+const email: Decoder<EmailAddress> = string.refine(
+  (s): s is EmailAddress => /^[^@]+@[^@]+$/.test(s),
+  'Must be valid email'
+);
+
+// TypeScript now knows the result is EmailAddress
+const addr = email.verify('user@example.com');
+// Type of addr is EmailAddress
+```
+
+## String Refinements
+
+```typescript
+import { string } from 'decoders';
+
+// Minimum length
+const minLength = (min: number) => 
+  string.refine(
+    s => s.length >= min,
+    `Must be at least ${min} characters`
+  );
+
+const password = minLength(8);
+password.verify('secret'); // Error: Must be at least 8 characters
+password.verify('secretpassword'); // 'secretpassword'
+
+// Maximum length
+const maxLength = (max: number) =>
+  string.refine(
+    s => s.length <= max,
+    `Must be at most ${max} characters`
+  );
+
+const username = maxLength(20);
+username.verify('verylongusernamethatexceedslimit'); // Error: Must be at most 20 characters
+
+// Pattern matching
+const alphanumeric = string.refine(
+  s => /^[a-zA-Z0-9]+$/.test(s),
+  'Must contain only letters and numbers'
+);
+
+alphanumeric.verify('abc123'); // 'abc123'
+alphanumeric.verify('abc-123'); // Error: Must contain only letters and numbers
+```
+
+## Number Refinements
+
+```typescript
+import { number } from 'decoders';
+
+// Even numbers
+const even = number.refine(
+  n => n % 2 === 0,
+  'Must be even'
+);
+
+even.verify(4); // 4
+even.verify(5); // Error: Must be even
+
+// Multiple of a value
+const multipleOf = (divisor: number) =>
+  number.refine(
+    n => n % divisor === 0,
+    `Must be multiple of ${divisor}`
+  );
+
+const multipleOf5 = multipleOf(5);
+multipleOf5.verify(15); // 15
+multipleOf5.verify(17); // Error: Must be multiple of 5
+
+// Within range (exclusive)
+const exclusive = (min: number, max: number) =>
+  number.refine(
+    n => n > min && n < max,
+    `Must be between ${min} and ${max} (exclusive)`
+  );
+
+const temperature = exclusive(-273.15, 1000);
+temperature.verify(20); // 20
+temperature.verify(-273.15); // Error: Must be between -273.15 and 1000 (exclusive)
+```
+
+## Array Refinements
+
+```typescript
+import { array, string } from 'decoders';
+
+// Non-empty arrays (also available as nonEmptyArray)
+const nonEmpty = <T>(decoder: Decoder<T>) =>
+  array(decoder).refine(
+    arr => arr.length > 0,
+    'Must be non-empty array'
+  );
+
+const tags = nonEmpty(string);
+tags.verify(['javascript']); // ['javascript']
+tags.verify([]); // Error: Must be non-empty array
+
+// Unique values
+const unique = array(string).refine(
+  arr => new Set(arr).size === arr.length,
+  'Array must contain unique values'
+);
+
+unique.verify(['a', 'b', 'c']); // ['a', 'b', 'c']
+unique.verify(['a', 'b', 'a']); // Error: Array must contain unique values
+
+// Specific length
+const exactLength = (n: number) => <T>(decoder: Decoder<T>) =>
+  array(decoder).refine(
+    arr => arr.length === n,
+    `Array must have exactly ${n} elements`
+  );
+
+const triple = exactLength(3)(number);
+triple.verify([1, 2, 3]); // [1, 2, 3]
+triple.verify([1, 2]); // Error: Array must have exactly 3 elements
+```
+
+## Object Refinements
+
+```typescript
+import { object, string, number } from 'decoders';
+
+// Conditional validation based on fields
+const userWithAge = object({
+  name: string,
+  age: number,
+  consent: boolean,
+}).refine(
+  user => user.age >= 18 || user.consent === false,
+  'Users under 18 cannot give consent'
+);
+
+// Cross-field validation
+const dateRange = object({
+  startDate: string,
+  endDate: string,
+}).refine(
+  range => new Date(range.startDate) <= new Date(range.endDate),
+  'Start date must be before or equal to end date'
+);
+
+dateRange.verify({ startDate: '2024-01-01', endDate: '2024-12-31' }); // ✓ OK
+dateRange.verify({ startDate: '2024-12-31', endDate: '2024-01-01' }); // Error
+```
+
+## The reject() Method
+
+While `.refine()` uses a predicate that returns boolean, `.reject()` allows you to return dynamic error messages or `null` to accept.
+
+```typescript
+import { number } from 'decoders';
+
+// Dynamic error messages based on value
+const scoreValidator = number.reject(score => {
+  if (score < 0) return 'Score cannot be negative';
+  if (score > 100) return 'Score cannot exceed 100';
+  if (!Number.isInteger(score)) return 'Score must be a whole number';
+  return null; // Accept the value
+});
+
+scoreValidator.verify(85); // 85
+scoreValidator.verify(-5); // Error: Score cannot be negative
+scoreValidator.verify(150); // Error: Score cannot exceed 100
+scoreValidator.verify(85.5); // Error: Score must be a whole number
+```
+
+## reject() vs refine()
+
+```typescript
+import { string } from 'decoders';
+
+// Using refine - static error message
+const password1 = string.refine(
+  s => s.length >= 8,
+  'Password must be at least 8 characters'
+);
+
+// Using reject - dynamic error message
+const password2 = string.reject(s => {
+  if (s.length < 8) return `Password too short (${s.length} chars, need 8+)`;
+  if (!/[A-Z]/.test(s)) return 'Password must contain uppercase letter';
+  if (!/[0-9]/.test(s)) return 'Password must contain a number';
+  return null; // Accept
+});
+
+password2.verify('weak'); // Error: Password too short (4 chars, need 8+)
+password2.verify('weakpassword'); // Error: Password must contain uppercase letter
+password2.verify('WeakPassword'); // Error: Password must contain a number
+password2.verify('StrongPass1'); // 'StrongPass1'
+```
+
+Use `.reject()` when:
+- You need different error messages for different conditions
+- The error message depends on the actual value
+- You have multiple validation rules to check
+
+Use `.refine()` when:
+- You have a simple boolean check
+- The error message is always the same
+- You want type narrowing with type predicates
+
+## Chaining Refinements
+
+You can chain multiple refinements together:
+
+```typescript
+import { string } from 'decoders';
+
+const username = string
+  .refine(s => s.length >= 3, 'Too short, minimum 3 characters')
+  .refine(s => s.length <= 20, 'Too long, maximum 20 characters')
+  .refine(s => /^[a-zA-Z0-9_]+$/.test(s), 'Only letters, numbers, and underscores allowed')
+  .refine(s => /^[a-zA-Z]/.test(s), 'Must start with a letter');
+
+username.verify('alice123'); // 'alice123'
+username.verify('ab'); // Error: Too short, minimum 3 characters
+username.verify('verylongusernamethatistoolong'); // Error: Too long, maximum 20 characters
+username.verify('alice-123'); // Error: Only letters, numbers, and underscores allowed
+username.verify('123alice'); // Error: Must start with a letter
+```
+
+## Using Built-in Refinements
+
+Many built-in decoders combine base decoders with refinements:
+
+```typescript
+import { number, integer, positiveInteger, between } from 'decoders';
+
+// integer is: number.refine(n => Number.isInteger(n), ...)
+integer.verify(42); // 42
+integer.verify(3.14); // Error: Number must be an integer
+
+// positiveInteger is: integer.refine(n => n >= 0, ...)
+positiveInteger.verify(5); // 5
+positiveInteger.verify(-1); // Error: Number must be positive
+
+// between uses .reject() internally
+between(1, 10).verify(5); // 5
+between(1, 10).verify(0); // Error: Too low, must be between 1 and 10
+between(1, 10).verify(11); // Error: Too high, must be between 1 and 10
+```
+
+## Real-World Examples
+
+### Email Validation
+
+```typescript
+import { string } from 'decoders';
+
+const email = string
+  .refine(s => s.includes('@'), 'Must contain @')
+  .refine(s => s.split('@').length === 2, 'Must have exactly one @')
+  .refine(s => s.split('@')[1].includes('.'), 'Domain must contain a dot')
+  .transform(s => s.toLowerCase());
+
+email.verify('User@Example.COM'); // 'user@example.com'
+```
+
+### Credit Card Validation
+
+```typescript
+import { string } from 'decoders';
+
+const creditCard = string
+  .transform(s => s.replace(/\s/g, '')) // Remove spaces
+  .refine(s => /^[0-9]+$/.test(s), 'Must contain only digits')
+  .refine(s => s.length === 16, 'Must be 16 digits')
+  .refine(luhnCheck, 'Invalid card number'); // Luhn algorithm
+
+function luhnCheck(cardNumber: string): boolean {
+  // Luhn algorithm implementation
+  let sum = 0;
+  let isEven = false;
+  
+  for (let i = cardNumber.length - 1; i >= 0; i--) {
+    let digit = parseInt(cardNumber[i]);
+    
+    if (isEven) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    
+    sum += digit;
+    isEven = !isEven;
+  }
+  
+  return sum % 10 === 0;
+}
+```
+
+### Business Logic Validation
+
+```typescript
+import { object, string, number } from 'decoders';
+
+const order = object({
+  productId: string,
+  quantity: number,
+  unitPrice: number,
+  discount: number,
+}).refine(
+  o => o.discount <= o.unitPrice * o.quantity,
+  'Discount cannot exceed total price'
+).refine(
+  o => o.quantity > 0,
+  'Quantity must be positive'
+).refine(
+  o => o.discount >= 0 && o.discount <= 1,
+  'Discount must be between 0 and 1'
+);
+```
+
+## When to Use Refinements
+
+Use refinements when you need to:
+
+- Add validation rules beyond type checking
+- Enforce business logic constraints
+- Validate relationships between fields
+- Apply domain-specific rules
+- Create reusable validators
+
+## Performance Considerations
+
+Refinements are checked **after** the base decoder succeeds, so:
+
+```typescript
+import { string } from 'decoders';
+
+// Efficient: checks are ordered from simple to complex
+const optimized = string
+  .refine(s => s.length >= 8, 'Too short') // Fast check first
+  .refine(s => /[A-Z]/.test(s), 'Need uppercase') // Simple regex
+  .refine(s => expensiveCheck(s), 'Complex validation'); // Expensive check last
+```
+
+## Next Steps
+
+- Learn about [transformations](/guides/transformations) for modifying validated data
+- Explore [custom decoders](/guides/custom-decoders) for advanced use cases
+- Check out the [API reference](/api-reference) for all decoder methods

@@ -1,0 +1,349 @@
+---
+title: Type Inference
+description: Understand how TypeScript automatically infers types from decoder definitions and how to extract decoder types.
+---
+
+One of the most powerful features of decoders is automatic type inference. TypeScript can determine the output type of a decoder based on its definition, eliminating the need to write types twice.
+
+## Automatic Type Inference
+
+When you create a decoder, TypeScript automatically infers what type it will produce:
+
+```typescript
+import { string, number, boolean, object, array } from 'decoders';
+
+// Simple types are inferred automatically
+const name = string.verify('Alice');
+//    ^^^^ TypeScript infers: string
+
+const age = number.verify(30);
+//    ^^^ TypeScript infers: number
+
+const active = boolean.verify(true);
+//    ^^^^^^ TypeScript infers: boolean
+```
+
+## Object Type Inference
+
+For objects, TypeScript infers the complete structure:
+
+```typescript
+import { object, string, number, optional } from 'decoders';
+
+const userDecoder = object({
+  id: number,
+  name: string,
+  email: optional(string),
+});
+
+const user = userDecoder.verify({
+  id: 1,
+  name: 'Alice',
+});
+
+// TypeScript infers the complete type:
+// {
+//   id: number;
+//   name: string;
+//   email?: string;
+// }
+
+// TypeScript knows these are valid:
+user.id.toFixed(2);
+user.name.toUpperCase();
+user.email?.includes('@');
+```
+
+Notice how `optional()` fields become optional properties with the `?` modifier.
+
+## Array Type Inference
+
+Arrays infer their element types:
+
+```typescript
+import { array, string, number } from 'decoders';
+
+const tags = array(string).verify(['react', 'typescript']);
+//    ^^^^ TypeScript infers: string[]
+
+const scores = array(number).verify([10, 20, 30]);
+//    ^^^^^^ TypeScript infers: number[]
+
+// TypeScript knows array methods:
+tags.map(tag => tag.toUpperCase());
+scores.reduce((sum, score) => sum + score, 0);
+```
+
+## Nested Structure Inference
+
+TypeScript correctly infers deeply nested structures:
+
+```typescript
+import { object, string, number, array, optional } from 'decoders';
+
+const blogPostDecoder = object({
+  id: number,
+  title: string,
+  author: object({
+    name: string,
+    email: string,
+  }),
+  tags: array(string),
+  comments: optional(array(object({
+    author: string,
+    text: string,
+    timestamp: number,
+  }))),
+});
+
+const post = blogPostDecoder.verify(data);
+
+// TypeScript infers:
+// {
+//   id: number;
+//   title: string;
+//   author: {
+//     name: string;
+//     email: string;
+//   };
+//   tags: string[];
+//   comments?: {
+//     author: string;
+//     text: string;
+//     timestamp: number;
+//   }[];
+// }
+
+// All these are type-safe:
+post.author.name.toUpperCase();
+post.tags.forEach(tag => console.log(tag));
+post.comments?.forEach(c => console.log(c.text));
+```
+
+## The DecoderType Helper
+
+When you need to extract the type from a decoder as a standalone type, use the `DecoderType` helper:
+
+```typescript
+import { object, string, number, type DecoderType } from 'decoders';
+
+const userDecoder = object({
+  id: number,
+  name: string,
+  email: string,
+});
+
+// Extract the type from the decoder
+type User = DecoderType<typeof userDecoder>;
+//   ^^^^
+//   This is equivalent to:
+//   {
+//     id: number;
+//     name: string;
+//     email: string;
+//   }
+
+// Now you can use this type elsewhere:
+function greetUser(user: User) {
+  return `Hello, ${user.name}!`;
+}
+
+const user = userDecoder.verify(externalData);
+greetUser(user); // Type-safe!
+```
+
+### Using DecoderType with typeof
+
+The `typeof` operator is crucial when using `DecoderType`:
+
+```typescript
+import { string, type DecoderType, type Decoder } from 'decoders';
+
+// Without typeof - this is the decoder TYPE
+type StringDecoder = Decoder<string>;
+
+// With typeof - this extracts the VALUE type
+type StringValue = DecoderType<typeof string>; // string
+```
+
+## Type Inference with Transformations
+
+When you transform a decoder, TypeScript tracks the type changes:
+
+```typescript
+import { string, array } from 'decoders';
+
+// Transform a string into an array of strings
+const csvDecoder = string.transform(s => s.split(','));
+
+const values = csvDecoder.verify('a,b,c');
+//    ^^^^^^ TypeScript infers: string[]
+
+// Chain transformations
+const uppercaseWords = string
+  .transform(s => s.split(' '))
+  .transform(words => words.map(w => w.toUpperCase()));
+
+const words = uppercaseWords.verify('hello world');
+//    ^^^^^ TypeScript infers: string[]
+```
+
+## Type Inference with Refinements
+
+Refinements can narrow types when using type predicates:
+
+```typescript
+import { string, number } from 'decoders';
+
+// Using a type predicate for type narrowing
+type PositiveNumber = number & { __brand: 'positive' };
+
+const positiveNumber = number.refine(
+  (n): n is PositiveNumber => n > 0,
+  'Must be positive'
+);
+
+const value = positiveNumber.verify(42);
+//    ^^^^^ TypeScript infers: PositiveNumber
+
+// Regular refinements keep the same type
+const nonEmptyString = string.refine(
+  s => s.length > 0,
+  'Must be non-empty'
+);
+
+const text = nonEmptyString.verify('hello');
+//    ^^^^ TypeScript infers: string
+```
+
+## Union Type Inference
+
+Union decoders correctly infer union types:
+
+```typescript
+import { either, string, number, null_ } from 'decoders';
+
+const stringOrNumber = either(string, number);
+
+const value = stringOrNumber.verify('hello');
+//    ^^^^^ TypeScript infers: string | number
+
+const nullable = either(string, null_);
+
+const maybeString = nullable.verify(null);
+//    ^^^^^^^^^^^ TypeScript infers: string | null
+
+// TypeScript enforces type narrowing:
+if (typeof value === 'string') {
+  value.toUpperCase(); // OK
+} else {
+  value.toFixed(2);    // OK, must be number
+}
+```
+
+## Complex Inference Examples
+
+Combining multiple features:
+
+```typescript
+import { object, string, number, array, either, optional } from 'decoders';
+
+const apiResponseDecoder = object({
+  status: either(string, number),
+  data: optional(object({
+    users: array(object({
+      id: number,
+      name: string,
+      roles: array(string),
+    })),
+    total: number,
+  })),
+  error: optional(string),
+});
+
+const response = apiResponseDecoder.verify(externalData);
+
+// TypeScript infers:
+// {
+//   status: string | number;
+//   data?: {
+//     users: {
+//       id: number;
+//       name: string;
+//       roles: string[];
+//     }[];
+//     total: number;
+//   };
+//   error?: string;
+// }
+
+// Type-safe access:
+if (response.data) {
+  response.data.users.forEach(user => {
+    console.log(user.name);
+    user.roles.forEach(role => console.log(role));
+  });
+}
+```
+
+## Benefits of Type Inference
+
+1. **Single Source of Truth**: Define the validation logic once, get types automatically
+2. **No Type Duplication**: Avoid manually writing interface definitions that mirror your decoders
+3. **Automatic Updates**: Change the decoder, and TypeScript updates types everywhere
+4. **Type Safety**: Guaranteed alignment between runtime validation and compile-time types
+5. **Better Refactoring**: TypeScript catches breaking changes when you modify decoders
+
+## Common Patterns
+
+### Reusable Decoder Types
+
+```typescript
+import { object, string, number, type DecoderType } from 'decoders';
+
+const addressDecoder = object({
+  street: string,
+  city: string,
+  zipCode: string,
+});
+
+const personDecoder = object({
+  name: string,
+  age: number,
+  address: addressDecoder,
+});
+
+// Extract types
+type Address = DecoderType<typeof addressDecoder>;
+type Person = DecoderType<typeof personDecoder>;
+
+// Use types in functions
+function formatAddress(addr: Address): string {
+  return `${addr.street}, ${addr.city} ${addr.zipCode}`;
+}
+```
+
+### Generic Decoder Functions
+
+```typescript
+import { array, type Decoder, type DecoderType } from 'decoders';
+
+function paginatedDecoder<T>(itemDecoder: Decoder<T>) {
+  return object({
+    items: array(itemDecoder),
+    page: number,
+    totalPages: number,
+  });
+}
+
+const paginatedUsers = paginatedDecoder(userDecoder);
+type PaginatedUsers = DecoderType<typeof paginatedUsers>;
+//   ^^^^^^^^^^^^^^
+//   {
+//     items: User[];
+//     page: number;
+//     totalPages: number;
+//   }
+```
+
+Type inference makes decoders both powerful at runtime and seamlessly integrated with TypeScript's type system.

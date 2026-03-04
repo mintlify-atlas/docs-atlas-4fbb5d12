@@ -1,0 +1,72 @@
+---
+title: email
+description: Validates email address strings
+---
+
+# email
+
+Accepts and returns strings that are syntactically valid email addresses.
+
+**Note:** This validates email syntax only. It does not verify that the email address actually exists.
+
+## Type Signature
+
+```typescript
+const email: Decoder<string>
+```
+
+## Validation Pattern
+
+Uses a comprehensive email regex pattern that validates:
+- Local part: alphanumeric characters, dots, and special characters in quotes
+- Domain part: IP addresses in brackets or domain names with TLDs
+
+Regex pattern:
+```regex
+/^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
+```
+
+Source: [emailregex.com](https://emailregex.com/)
+
+## Valid Inputs
+
+```typescript
+import { email } from 'decoders';
+
+email.verify('user@example.com');        // ✓ 'user@example.com'
+email.verify('john.doe@company.co.uk'); // ✓ 'john.doe@company.co.uk'
+email.verify('test+tag@domain.org');     // ✓ 'test+tag@domain.org'
+email.verify('"spaces ok"@example.com'); // ✓ '"spaces ok"@example.com'
+email.verify('user@[192.168.1.1]');      // ✓ 'user@[192.168.1.1]'
+```
+
+## Invalid Inputs
+
+```typescript
+email.verify('notanemail');          // ✗ Must be email
+email.verify('missing@domain');      // ✗ Must be email
+email.verify('@example.com');        // ✗ Must be email
+email.verify('user@');               // ✗ Must be email
+email.verify('user @example.com');   // ✗ Must be email (space before @)
+email.verify(123);                   // ✗ Must be string
+```
+
+## Error Message
+
+When validation fails: `"Must be email"`
+
+## Implementation
+
+```typescript
+export const email: Decoder<string> = regex(
+  /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/,
+  'Must be email',
+);
+```
+
+Source: `src/strings.ts:63-67`
+
+## Related Decoders
+
+- [regex](/api/strings/regex) - Create custom string pattern validators
+- [url](/api/strings/url) - Validate URL strings

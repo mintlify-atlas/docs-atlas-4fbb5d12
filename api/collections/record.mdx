@@ -1,0 +1,183 @@
+---
+title: record
+description: Validate objects with dynamic keys and consistent value types
+---
+
+## Overview
+
+The `record()` decoder validates objects where all values match a given decoder, returning a `Record<string, V>` type. It also supports an optional key decoder for validating and transforming object keys.
+
+## Basic Usage
+
+### Record with value decoder only
+
+```typescript
+import { record, string, number } from 'decoders';
+
+const scoresDecoder = record(number);
+
+const result = scoresDecoder.verify({
+  alice: 95,
+  bob: 87,
+  charlie: 92,
+});
+// Type: Record<string, number>
+// Result: { alice: 95, bob: 87, charlie: 92 }
+```
+
+### Record with key and value decoders
+
+```typescript
+import { record, string, number } from 'decoders';
+
+// Validate that keys are valid email addresses
+const emailScoresDecoder = record(email, number);
+
+const result = emailScoresDecoder.verify({
+  'alice@example.com': 95,
+  'bob@example.com': 87,
+});
+// Type: Record<string, number>
+```
+
+## Type Signature
+
+```typescript
+// Value decoder only
+function record<V>(valueDecoder: Decoder<V>): Decoder<Record<string, V>>;
+
+// Key and value decoders
+function record<K extends string, V>(
+  keyDecoder: Decoder<K>,
+  valueDecoder: Decoder<V>
+): Decoder<Record<K, V>>;
+```
+
+## Parameters
+
+<ParamField path="valueDecoder" type="Decoder<V>" required>
+  Decoder to validate each value in the object. When used as the first parameter, all keys are accepted as strings.
+</ParamField>
+
+<ParamField path="keyDecoder" type="Decoder<K extends string>">
+  Optional decoder to validate and transform object keys. The decoder must return strings.
+</ParamField>
+
+## Return Value
+
+Returns a `Decoder<Record<K, V>>` that validates objects with consistent key-value types.
+
+## Examples
+
+### Configuration objects
+
+```typescript
+import { record, string } from 'decoders';
+
+const configDecoder = record(string);
+
+const config = configDecoder.verify({
+  apiUrl: 'https://api.example.com',
+  apiKey: 'secret123',
+  environment: 'production',
+});
+// Type: Record<string, string>
+```
+
+### Nested objects
+
+```typescript
+import { record, object, string, number } from 'decoders';
+
+const userStatsDecoder = record(
+  object({
+    score: number,
+    level: number,
+  })
+);
+
+const stats = userStatsDecoder.verify({
+  alice: { score: 1500, level: 10 },
+  bob: { score: 2300, level: 15 },
+});
+// Type: Record<string, { score: number; level: number }>
+```
+
+### With key validation
+
+```typescript
+import { record, string, number, regex } from 'decoders';
+
+// Only allow alphanumeric keys
+const alphanumericKey = regex(/^[a-zA-Z0-9]+$/, 'Must be alphanumeric');
+const validatedRecordDecoder = record(alphanumericKey, number);
+
+// This will succeed
+validatedRecordDecoder.verify({
+  user123: 42,
+  abc: 99,
+});
+
+// This will fail (key contains special characters)
+validatedRecordDecoder.verify({
+  'user@123': 42, // Error: Invalid key "user@123"
+});
+```
+
+## Error Handling
+
+When validation fails, `record()` provides detailed error messages:
+
+```typescript
+import { record, number } from 'decoders';
+
+const decoder = record(number);
+
+try {
+  decoder.verify({
+    a: 1,
+    b: 'invalid', // Not a number
+    c: 3,
+  });
+} catch (error) {
+  console.error(error.message);
+  // Error includes the specific key that failed: "b"
+}
+```
+
+### Invalid key errors
+
+```typescript
+import { record, email, string } from 'decoders';
+
+const decoder = record(email, string);
+
+try {
+  decoder.verify({
+    'valid@email.com': 'value',
+    'not-an-email': 'value', // Invalid key
+  });
+} catch (error) {
+  console.error(error.message);
+  // Error: Invalid key "not-an-email": Must be valid email
+}
+```
+
+## Behavior
+
+- Validates each key-value pair in the object
+- Collects all errors if multiple values fail validation
+- Stops processing on first invalid key (if key decoder is provided)
+- Returns a new object with validated values
+- Does not modify the original input
+
+## Related Decoders
+
+- [`mapping`](/api/collections/mapping) - Returns an ES6 `Map<string, T>` instead of a plain object
+- [`object`](/api/objects/object) - For objects with known, fixed keys
+- [`pojo`](/api/arrays/poja) - For validating plain JavaScript objects
+
+## See Also
+
+- [Object validation guide](/guides/object-validation)
+- [Custom decoders guide](/guides/custom-decoders)

@@ -1,0 +1,173 @@
+---
+title: Introduction
+description: Learn about decoders and why you need runtime validation in TypeScript
+---
+
+Decoders is an elegant and battle-tested validation library for type-safe input data in TypeScript. It provides runtime type checking with automatic TypeScript type inference, ensuring your data is both valid and correctly typed.
+
+## What are decoders?
+
+TypeScript provides compile-time type safety, but it can't validate data that arrives at runtime from external sources like APIs, user input, or configuration files. Decoders bridge this gap by:
+
+1. **Validating** data structure and types at runtime
+2. **Inferring** TypeScript types automatically from your validation rules
+3. **Providing** clear error messages when validation fails
+4. **Transforming** data while maintaining type safety
+
+## Why use decoders?
+
+### TypeScript can't validate runtime data
+
+TypeScript's type system only exists at compile time. When data comes from external sources, TypeScript has no way to verify it matches your types:
+
+```typescript
+// TypeScript trusts this is correct, but it might not be!
+const apiResponse: User = await fetch('/api/user').then(r => r.json());
+```
+
+If the API returns unexpected data, your application may crash or behave incorrectly.
+
+### Decoders provide runtime safety
+
+With decoders, you validate and type-check data at runtime:
+
+```typescript
+import { object, string, number, array } from 'decoders';
+
+const userDecoder = object({
+  id: number,
+  name: string,
+  email: string,
+  roles: array(string),
+});
+
+// Validate AND get type-safe result
+const user = userDecoder.verify(apiResponse);
+// TypeScript knows: { id: number; name: string; email: string; roles: string[] }
+```
+
+If validation fails, you get a clear error message explaining exactly what went wrong.
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Automatic type inference" icon="wand-magic-sparkles">
+    TypeScript automatically infers types from your decoder definitions - no need to write types twice
+  </Card>
+  <Card title="Composable" icon="puzzle-piece">
+    Build complex validators from simple, reusable building blocks
+  </Card>
+  <Card title="Zero dependencies" icon="feather">
+    Tiny bundle size (~4KB) with zero runtime dependencies and full tree-shaking support
+  </Card>
+  <Card title="Excellent errors" icon="circle-exclamation">
+    Detailed error messages that pinpoint exactly what went wrong and where
+  </Card>
+  <Card title="Battle-tested" icon="shield-check">
+    Used in production by thousands of projects with comprehensive test coverage
+  </Card>
+  <Card title="Cross-platform" icon="globe">
+    Works in Node.js, browsers, Bun, Deno, and Cloudflare Workers
+  </Card>
+</CardGroup>
+
+## Basic example
+
+Here's a complete example showing how decoders work:
+
+```typescript
+import { object, string, number, optional, array, isoDate } from 'decoders';
+
+// Define the shape of data you expect
+const userDecoder = object({
+  id: number,
+  name: string,
+  email: optional(string),
+  createdAt: optional(isoDate),
+  tags: array(string),
+});
+
+// Data from an external source (API, user input, etc.)
+const externalData = {
+  id: 123,
+  name: 'Alison Roberts',
+  createdAt: '2026-01-11T12:26:37.024Z',
+  tags: ['foo', 'bar'],
+};
+
+// Validate and get type-safe result
+const user = userDecoder.verify(externalData);
+// TypeScript infers the type:
+// {
+//   id: number;
+//   name: string;
+//   email?: string;
+//   createdAt?: Date;
+//   tags: string[];
+// }
+
+console.log(user.name); // 'Alison Roberts'
+console.log(user.createdAt); // Date object
+```
+
+If the data doesn't match the expected shape, `.verify()` throws an error with a detailed message.
+
+## When to use decoders
+
+Use decoders whenever you need to validate untrusted data:
+
+- **API responses** - Validate data from external APIs
+- **User input** - Validate form submissions and user-provided data
+- **Configuration files** - Validate JSON/YAML configuration
+- **Database queries** - Validate data from databases
+- **Message queues** - Validate messages from queues like RabbitMQ or Kafka
+- **Environment variables** - Validate and parse environment configuration
+- **File uploads** - Validate uploaded file contents
+
+## How it works
+
+Decoders use a simple three-step process:
+
+<Steps>
+  <Step title="Define a decoder">
+    Create a decoder that describes the expected data structure using composable decoder functions.
+  </Step>
+  
+  <Step title="Validate data">
+    Call `.decode()` or `.verify()` on untrusted data to validate it against your decoder.
+  </Step>
+  
+  <Step title="Use type-safe data">
+    TypeScript automatically knows the validated data's type - no manual type assertions needed.
+  </Step>
+</Steps>
+
+## Comparison with other libraries
+
+| Feature | Decoders | Zod | Yup | io-ts |
+|---------|----------|-----|-----|-------|
+| Bundle size | ~4KB | ~12KB | ~16KB | ~8KB |
+| Dependencies | 0 | 0 | Several | fp-ts |
+| Type inference | ✓ | ✓ | Limited | ✓ |
+| Composable | ✓ | ✓ | ✓ | ✓ |
+| Error messages | Excellent | Good | Good | Complex |
+| Learning curve | Low | Medium | Low | High |
+
+Decoders prioritizes simplicity, small bundle size, and excellent error messages while providing powerful composition and type inference.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install decoders and set up your project
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Build your first decoder in 5 minutes
+  </Card>
+  <Card title="Core concepts" icon="book" href="/concepts/how-decoders-work">
+    Understand how decoders work under the hood
+  </Card>
+  <Card title="API reference" icon="code" href="/api/decoder-class">
+    Explore the complete API documentation
+  </Card>
+</CardGroup>

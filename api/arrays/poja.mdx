@@ -1,0 +1,230 @@
+---
+title: poja
+description: Decode any array without validating elements
+---
+
+## Signature
+
+```typescript
+const poja: Decoder<unknown[]>
+```
+
+## Description
+
+Accepts any array, but doesn't validate its items further.
+
+"poja" means "**p**lain **o**ld **J**avaScript **a**rray", a play on [`pojo`](/api/primitives/pojo) (plain old JavaScript object).
+
+This is a low-level primitive decoder that simply checks if the input is an array. All elements are typed as `unknown`.
+
+## Type
+
+```typescript
+Decoder<unknown[]>
+```
+
+The decoded value is typed as an array of `unknown` elements, ensuring you can't accidentally use unvalidated data.
+
+## Parameters
+
+None. This is a constant decoder, not a function.
+
+## Returns
+
+A decoder that accepts any array and returns it typed as `unknown[]`.
+
+## Behavior
+
+- **Any array**: Accepted (empty or non-empty)
+- **Elements**: Not validated, typed as `unknown`
+- **Not an array**: Decode fails with "Must be an array"
+- **Array-like objects**: Rejected (must be actual arrays)
+
+## Examples
+
+### Basic Usage
+
+```typescript
+import { poja } from 'decoders';
+
+poja.decode([]);
+// Result: []
+// Type: unknown[]
+
+poja.decode([1, 2, 3]);
+// Result: [1, 2, 3]
+// Type: unknown[]
+
+poja.decode(['a', 'b', 'c']);
+// Result: ['a', 'b', 'c']
+// Type: unknown[]
+
+poja.decode([1, 'mixed', true, null, { key: 'value' }]);
+// Result: [1, 'mixed', true, null, { key: 'value' }]
+// Type: unknown[]
+```
+
+### Not Arrays
+
+```typescript
+import { poja } from 'decoders';
+
+poja.decode('not an array');
+// Error: "Must be an array"
+
+poja.decode({ 0: 'a', 1: 'b', length: 2 });
+// Error: "Must be an array" (array-like objects are not arrays)
+
+poja.decode(null);
+// Error: "Must be an array"
+
+poja.decode(undefined);
+// Error: "Must be an array"
+```
+
+### Type Safety
+
+```typescript
+import { poja } from 'decoders';
+
+const result = poja.decode([1, 2, 3]);
+
+// TypeScript error: Type 'unknown' is not assignable to type 'number'
+// const first: number = result[0];
+
+// Must use type guard
+if (typeof result[0] === 'number') {
+  const first: number = result[0]; // OK
+}
+
+// Or validate further
+import { array, number } from 'decoders';
+const validated = array(number).decode(result);
+// Now: number[]
+```
+
+### Building Block for Other Decoders
+
+`poja` is typically used as a building block for more specific array decoders:
+
+```typescript
+import { poja, guard, string } from 'decoders';
+
+// Example: Custom decoder that checks array length
+const exactly3Items = poja.refine(
+  arr => arr.length === 3,
+  'Must have exactly 3 items'
+);
+
+exactly3Items.decode([1, 2, 3]);
+// Result: [1, 2, 3]
+
+exactly3Items.decode([1, 2]);
+// Error: "Must have exactly 3 items"
+
+// Chain with validation
+const threeStrings = exactly3Items.chain((arr, ok, err) => {
+  if (arr.every(item => typeof item === 'string')) {
+    return ok(arr as [string, string, string]);
+  }
+  return err('All items must be strings');
+});
+```
+
+### With Transform
+
+```typescript
+import { poja } from 'decoders';
+
+const arrayLength = poja.transform(arr => arr.length);
+
+arrayLength.decode([1, 2, 3, 4, 5]);
+// Result: 5
+// Type: number
+
+arrayLength.decode([]);
+// Result: 0
+```
+
+### With Refine
+
+```typescript
+import { poja } from 'decoders';
+
+const nonEmptyPoja = poja.refine(
+  arr => arr.length > 0,
+  'Must be non-empty array'
+);
+
+nonEmptyPoja.decode([1, 2, 3]);
+// Result: [1, 2, 3]
+
+nonEmptyPoja.decode([]);
+// Error: "Must be non-empty array"
+```
+
+### Chaining to Specific Validators
+
+```typescript
+import { poja, array, string } from 'decoders';
+
+// First check it's an array, then validate elements
+const stringArrayDecoder = poja.pipe(array(string));
+
+// This is less efficient than using array(string) directly,
+// but demonstrates how poja can be used in chains
+stringArrayDecoder.decode(['a', 'b', 'c']);
+// Result: ['a', 'b', 'c']
+// Type: string[]
+```
+
+## When to Use
+
+Use `poja` when:
+
+- Building custom array decoders
+- You need to check if something is an array before further processing
+- Creating conditional decoders based on array properties (length, etc.)
+- You want to accept any array and validate elements later
+
+## When Not to Use
+
+Avoid `poja` when:
+
+- You know the element type - use [`array(decoder)`](/api/arrays/array) instead
+- You need a fixed-length array - use [`tuple(...decoders)`](/api/arrays/tuple) instead
+- You don't actually need array validation - just use TypeScript types
+
+## Implementation
+
+```typescript
+export const poja: Decoder<unknown[]> = define((blob, ok, err) => {
+  if (!Array.isArray(blob)) {
+    return err('Must be an array');
+  }
+  return ok(blob as unknown[]);
+});
+```
+
+Uses JavaScript's `Array.isArray()` for reliable array detection.
+
+## Comparison with Similar Decoders
+
+| Decoder | Elements | Length | Type |
+|---------|----------|--------|------|
+| `poja` | Not validated | Any | `unknown[]` |
+| `array(decoder)` | Validated with decoder | Any | `T[]` |
+| `tuple(...decoders)` | Each position validated | Fixed | `[T1, T2, ...]` |
+| `nonEmptyArray(decoder)` | Validated with decoder | At least 1 | `[T, ...T[]]` |
+
+## Related Decoders
+
+- [`array`](/api/arrays/array) - Validates array elements with a decoder
+- [`tuple`](/api/arrays/tuple) - Fixed-length arrays with position-specific types
+- [`pojo`](/api/primitives/pojo) - Similar concept for objects
+
+## See Also
+
+- [Building custom decoders](/guides/custom-decoders)
+- [Working with unknown types](/guides/unknown-types)
+- [Decoder composition](/guides/composition)

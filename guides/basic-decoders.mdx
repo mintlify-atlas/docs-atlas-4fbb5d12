@@ -1,0 +1,274 @@
+---
+title: Basic Decoders
+description: Learn about the fundamental decoders for primitive types in the decoders library
+---
+
+This guide covers the basic decoders for primitive types like strings, numbers, booleans, dates, and constants. These form the building blocks for more complex validation schemas.
+
+## String Decoders
+
+The library provides several string decoders for different use cases.
+
+### Basic String Validation
+
+```typescript
+import { string, nonEmptyString } from 'decoders';
+
+// Accepts any string
+string.verify('hello'); // 'hello'
+string.verify(123); // Error: Must be string
+
+// Rejects empty strings or whitespace-only strings
+nonEmptyString.verify('hello'); // 'hello'
+nonEmptyString.verify('   '); // Error: Must be non-empty string
+nonEmptyString.verify(''); // Error: Must be non-empty string
+```
+
+### Pattern Matching
+
+```typescript
+import { regex, startsWith, endsWith } from 'decoders';
+
+// Match strings against a regular expression
+const username = regex(/^[a-z0-9_]+$/i, 'Must be valid username');
+username.verify('john_doe'); // 'john_doe'
+username.verify('john-doe'); // Error: Must be valid username
+
+// Prefix validation
+const gitUrl = startsWith('https://github.com/');
+gitUrl.verify('https://github.com/user/repo'); // 'https://github.com/user/repo'
+
+// Suffix validation
+const jsFile = endsWith('.js');
+jsFile.verify('index.js'); // 'index.js'
+```
+
+### Specialized String Decoders
+
+```typescript
+import { email, url, uuid, identifier, nanoid } from 'decoders';
+
+// Email validation
+email.verify('user@example.com'); // 'user@example.com'
+email.verify('invalid'); // Error: Must be email
+
+// URL validation (returns URL instance)
+url.verify('https://example.com'); // URL instance
+
+// UUID validation
+uuid.verify('550e8400-e29b-41d4-a716-446655440000'); // valid UUID string
+uuidv4.verify('550e8400-e29b-41d4-a716-446655440000'); // validates UUIDv4 specifically
+
+// Programming identifier validation
+identifier.verify('myVariable'); // 'myVariable'
+identifier.verify('my-variable'); // Error: Must be valid identifier
+
+// Nano ID validation (default size is 21)
+nanoid().verify('V1StGXR8_Z5jdHi6B-myT'); // valid nano ID
+nanoid({ size: 10 }).verify('V1StGXR8_Z'); // custom size
+```
+
+### Numeric Strings
+
+```typescript
+import { decimal, hexadecimal, numeric } from 'decoders';
+
+// Decimal digits only (returns string)
+decimal.verify('12345'); // '12345'
+decimal.verify('12.34'); // Error: Must only contain digits
+
+// Hexadecimal digits (returns string)
+hexadecimal.verify('1a2b3c'); // '1a2b3c'
+hexadecimal.verify('xyz'); // Error: Must only contain hexadecimal digits
+
+// Numeric strings converted to numbers
+numeric.verify('42'); // 42 (number)
+numeric.verify('not a number'); // Error
+```
+
+## Number Decoders
+
+Number decoders provide validation for numeric values with various constraints.
+
+### Basic Number Validation
+
+```typescript
+import { number, anyNumber, integer } from 'decoders';
+
+// Accepts finite numbers only
+number.verify(42); // 42
+number.verify(3.14); // 3.14
+number.verify(NaN); // Error: Number must be finite
+number.verify(Infinity); // Error: Number must be finite
+
+// Accepts any number value (including NaN and Infinity)
+anyNumber.verify(NaN); // NaN
+anyNumber.verify(Infinity); // Infinity
+
+// Accepts whole numbers only
+integer.verify(42); // 42
+integer.verify(3.14); // Error: Number must be an integer
+```
+
+### Range Validation
+
+```typescript
+import { min, max, between, positiveNumber, positiveInteger } from 'decoders';
+
+// Minimum value
+min(0).verify(5); // 5
+min(0).verify(-1); // Error: Too low, must be at least 0
+min(10, integer).verify(15); // 15 (combines min with integer validation)
+
+// Maximum value
+max(100).verify(50); // 50
+max(100).verify(150); // Error: Too high, must be at most 100
+
+// Range (inclusive)
+between(1, 10).verify(5); // 5
+between(1, 10).verify(0); // Error: Too low, must be between 1 and 10
+between(1, 10).verify(11); // Error: Too high, must be between 1 and 10
+
+// Positive numbers (zero or greater)
+positiveNumber.verify(5); // 5
+positiveNumber.verify(0); // 0
+positiveNumber.verify(-1); // Error: Number must be positive
+
+// Positive integers
+positiveInteger.verify(5); // 5
+positiveInteger.verify(5.5); // Error: Number must be an integer
+```
+
+### BigInt
+
+```typescript
+import { bigint } from 'decoders';
+
+bigint.verify(123n); // 123n
+bigint.verify(123); // Error: Must be bigint
+```
+
+## Boolean Decoders
+
+```typescript
+import { boolean, truthy } from 'decoders';
+
+// Strict boolean validation
+boolean.verify(true); // true
+boolean.verify(false); // false
+boolean.verify(1); // Error: Must be boolean
+
+// Truthy value conversion (never rejects)
+truthy.verify(true); // true
+truthy.verify(false); // false
+truthy.verify(1); // true
+truthy.verify(0); // false
+truthy.verify('hello'); // true
+truthy.verify(''); // false
+```
+
+## Date Decoders
+
+Validate and work with dates in various formats.
+
+```typescript
+import { date, isoDate, isoDateString, flexDate } from 'decoders';
+
+// Date instances
+date.verify(new Date()); // Date instance
+date.verify('2024-01-01'); // Error: Must be a Date
+
+// ISO 8601 string validation (returns string)
+isoDateString.verify('2024-01-01T12:00:00Z'); // '2024-01-01T12:00:00Z'
+isoDateString.verify('2024-01-01T12:00:00+05:00'); // valid
+isoDateString.verify('2024-01-01'); // Error: Must be ISO8601 format
+
+// ISO 8601 string converted to Date
+isoDate.verify('2024-01-01T12:00:00Z'); // Date instance
+
+// Flexible date decoder (accepts Date or ISO string)
+flexDate.verify(new Date()); // Date instance
+flexDate.verify('2024-01-01T12:00:00Z'); // Date instance
+flexDate.verify('invalid'); // Error: Must be a Date or date string
+```
+
+## Constant and Literal Values
+
+```typescript
+import { constant, null_, undefined_, always, never } from 'decoders';
+
+// Accept only a specific constant value
+const statusOk = constant('ok');
+statusOk.verify('ok'); // 'ok'
+statusOk.verify('error'); // Error: Must be "ok"
+
+const theNumber42 = constant(42);
+theNumber42.verify(42); // 42
+theNumber42.verify(43); // Error: Must be 42
+
+// Null and undefined
+null_.verify(null); // null
+null_.verify(undefined); // Error: Must be null
+
+undefined_.verify(undefined); // undefined
+undefined_.verify(null); // Error: Must be undefined
+
+// Always returns a constant value (ignores input)
+always(42).verify('anything'); // 42
+always('default').verify(123); // 'default'
+
+// Always rejects
+never('This field is deprecated').verify('anything'); // Error: This field is deprecated
+```
+
+## Optional and Nullable Values
+
+```typescript
+import { optional, nullable, nullish, string } from 'decoders';
+
+// Optional values (string | undefined)
+optional(string).verify('hello'); // 'hello'
+optional(string).verify(undefined); // undefined
+optional(string).verify(null); // Error
+
+// Optional with default value
+optional(string, 'default').verify(undefined); // 'default'
+optional(string, 'default').verify('hello'); // 'hello'
+
+// Nullable values (string | null)
+nullable(string).verify('hello'); // 'hello'
+nullable(string).verify(null); // null
+nullable(string).verify(undefined); // Error
+
+// Nullable with default value
+nullable(string, 'default').verify(null); // 'default'
+
+// Nullish (string | null | undefined)
+nullish(string).verify('hello'); // 'hello'
+nullish(string).verify(null); // null
+nullish(string).verify(undefined); // undefined
+
+// Nullish with default value
+nullish(string, 'default').verify(null); // 'default'
+nullish(string, 'default').verify(undefined); // 'default'
+```
+
+## Unknown and Any
+
+```typescript
+import { unknown, anything } from 'decoders';
+
+// Accepts anything and returns it unchanged
+unknown.verify('hello'); // 'hello'
+unknown.verify(123); // 123
+unknown.verify({ any: 'object' }); // { any: 'object' }
+
+// Alias of unknown
+anything.verify('literally anything'); // 'literally anything'
+```
+
+## Next Steps
+
+- Learn about [object validation](/guides/object-validation) for complex structures
+- Explore [array validation](/guides/array-validation) for lists and tuples
+- Discover how to create [custom decoders](/guides/custom-decoders)

@@ -1,0 +1,265 @@
+---
+title: 'define()'
+description: 'Create custom decoders with validation logic'
+---
+
+The `define()` function allows you to create custom `Decoder<T>` instances with your own validation logic.
+
+## Type Signature
+
+```typescript
+function define<T>(fn: AcceptanceFn<T>): Decoder<T>
+
+type AcceptanceFn<O, I = unknown> = (
+  blob: I,
+  ok: (value: O) => DecodeResult<O>,
+  err: (msg: string | Annotation) => DecodeResult<O>,
+) => DecodeResult<O>
+```
+
+## Parameters
+
+<ParamField path="fn" type="AcceptanceFn<T>" required>
+  An acceptance function that receives three arguments:
+  
+  - `blob` - The untrusted input to validate
+  - `ok` - Call `ok(value)` to accept the input and return that value
+  - `err` - Call `err(message)` to reject the input with an error message
+  
+  The function must return a `DecodeResult<T>` by calling either `ok()` or `err()`.
+</ParamField>
+
+**Returns:** `Decoder<T>` - A new decoder instance
+
+## Basic Usage
+
+```typescript
+import { define } from 'decoders';
+
+// Simple decoder that accepts only the number 123
+const only123 = define((blob, ok, err) => {
+  if (blob === 123) {
+    return ok(123);
+  }
+  return err('Must be 123');
+});
+
+console.log(only123.verify(123)); // 123
+// only123.verify(456) throws error
+```
+
+## Multiple Acceptance Paths
+
+You can accept different types of input and normalize them:
+
+```typescript
+import { define } from 'decoders';
+
+const flexibleDate = define((blob, ok, err) => {
+  // Accept number 123
+  if (blob === 123) {
+    return ok(123);
+  }
+  
+  // Accept 'now' string as current date
+  if (blob === 'now') {
+    return ok(new Date());
+  }
+  
+  // Reject everything else
+  return err('Must be 123 or "now"');
+});
+
+console.log(flexibleDate.verify(123)); // 123
+console.log(flexibleDate.verify('now')); // Date object
+// flexibleDate.verify('other') throws error
+```
+
+## Type-Safe Parsing
+
+Create decoders that parse and transform input:
+
+```typescript
+import { define } from 'decoders';
+
+// Parse hex strings to numbers
+const hexNumber = define<number>((blob, ok, err) => {
+  // First validate it's a string
+  if (typeof blob !== 'string') {
+    return err('Must be a string');
+  }
+  
+  // Try to parse as hex
+  const num = parseInt(blob, 16);
+  
+  if (Number.isNaN(num)) {
+    return err('Must be a valid hex string');
+  }
+  
+  return ok(num);
+});
+
+console.log(hexNumber.verify('FF')); // 255
+console.log(hexNumber.verify('DEADC0DE')); // 3735929054
+// hexNumber.verify('not-hex') throws error
+```
+
+## Composing with Existing Decoders
+
+You can use existing decoders within your custom decoder:
+
+```typescript
+import { define, string, number } from 'decoders';
+
+// Accept either a number or a numeric string
+const flexibleNumber = define<number>((blob, ok, err) => {
+  // If it's already a number, accept it
+  const numResult = number.decode(blob);
+  if (numResult.ok) {
+    return ok(numResult.value);
+  }
+  
+  // If it's a string, try to parse it
+  const strResult = string.decode(blob);
+  if (strResult.ok) {
+    const parsed = Number(strResult.value);
+    if (!Number.isNaN(parsed)) {
+      return ok(parsed);
+    }
+  }
+  
+  return err('Must be a number or numeric string');
+});
+
+console.log(flexibleNumber.verify(42)); // 42
+console.log(flexibleNumber.verify('42')); // 42
+// flexibleNumber.verify('abc') throws error
+```
+
+## Advanced: Using Annotations
+
+For more control over error formatting, you can use `Annotation` objects:
+
+```typescript
+import { define, annotate } from 'decoders';
+
+const positiveNumber = define<number>((blob, ok, err) => {
+  if (typeof blob !== 'number') {
+    return err(annotate(blob, 'Must be a number'));
+  }
+  
+  if (blob <= 0) {
+    return err(annotate(blob, 'Must be positive'));
+  }
+  
+  return ok(blob);
+});
+```
+
+## Error Handling
+
+The `err()` function accepts either a string or an `Annotation` object:
+
+```typescript
+import { define, annotate } from 'decoders';
+
+const myDecoder = define((blob, ok, err) => {
+  // Simple string error
+  if (condition1) {
+    return err('Simple error message');
+  }
+  
+  // Annotation for more control
+  if (condition2) {
+    return err(annotate(blob, 'Error with context'));
+  }
+  
+  return ok(blob);
+});
+```
+
+## Important Notes
+
+<Warning>
+  The `ok()` and `err()` functions **do not** perform side effects. You must **return** their values.
+</Warning>
+
+```typescript
+// ❌ WRONG - doesn't return the result
+const bad = define((blob, ok, err) => {
+  if (blob === 123) {
+    ok(123); // Missing return!
+  }
+});
+
+// ✅ CORRECT - returns the result
+const good = define((blob, ok, err) => {
+  if (blob === 123) {
+    return ok(123);
+  }
+  return err('Not 123');
+});
+```
+
+## Building Validators
+
+Combine `define()` with decoder methods to create reusable validators:
+
+```typescript
+import { define, string } from 'decoders';
+
+// Email-like validator (simplified)
+const email = define((blob, ok, err) => {
+  if (typeof blob !== 'string') {
+    return err('Must be a string');
+  }
+  
+  if (!blob.includes('@')) {
+    return err('Must be a valid email');
+  }
+  
+  return ok(blob);
+}).transform(s => s.toLowerCase());
+
+// URL validator
+const url = define((blob, ok, err) => {
+  if (typeof blob !== 'string') {
+    return err('Must be a string');
+  }
+  
+  try {
+    const parsed = new URL(blob);
+    return ok(parsed.href);
+  } catch {
+    return err('Must be a valid URL');
+  }
+});
+```
+
+## All Decoder Methods Available
+
+Decoders created with `define()` have access to all decoder methods:
+
+- [`.decode()`](/api/decoder-class#decode) - Safe decoding that returns a Result
+- [`.verify()`](/api/decoder-class#verify) - Decoding that throws on error
+- [`.value()`](/api/decoder-class#value) - Returns value or undefined
+- [`.transform()`](/api/decoder-class#transform) - Transform the output
+- [`.refine()`](/api/decoder-class#refine) - Add validation predicates
+- [`.reject()`](/api/decoder-class#reject) - Add rejection logic
+- [`.describe()`](/api/decoder-class#describe) - Custom error messages
+- [`.pipe()`](/api/decoder-class#pipe) - Pipe to another decoder
+- [`.chain()`](/api/decoder-class#chain) - Advanced composition
+
+```typescript
+import { define } from 'decoders';
+
+const baseDecoder = define((blob, ok, err) => {
+  return typeof blob === 'string' ? ok(blob) : err('Not a string');
+});
+
+// Chain additional validations
+const email = baseDecoder
+  .refine(s => s.includes('@'), 'Must contain @')
+  .transform(s => s.toLowerCase())
+  .describe('Must be a valid email');
+```

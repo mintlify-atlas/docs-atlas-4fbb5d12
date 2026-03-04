@@ -1,0 +1,195 @@
+---
+title: Number Decoders
+description: Decoders for validating and transforming number values
+---
+
+## anyNumber
+
+Accepts any valid `number` value.
+
+This also accepts special values like `NaN` and `Infinity`. Unless you want to deliberately accept those, you'll likely want to use the `number` decoder instead.
+
+```typescript
+const anyNumber: Decoder<number>
+```
+
+### Example
+
+```typescript
+import { anyNumber } from 'decoders';
+
+anyNumber.decode(42);         // ✓ 42
+anyNumber.decode(3.14);       // ✓ 3.14
+anyNumber.decode(NaN);        // ✓ NaN
+anyNumber.decode(Infinity);   // ✓ Infinity
+anyNumber.decode('42');       // ✗ Error: Must be number
+```
+
+## number
+
+Accepts finite numbers (can be integer or float values). Values `NaN`, or positive and negative `Infinity` will get rejected.
+
+```typescript
+const number: Decoder<number>
+```
+
+### Example
+
+```typescript
+import { number } from 'decoders';
+
+number.decode(42);         // ✓ 42
+number.decode(3.14);       // ✓ 3.14
+number.decode(NaN);        // ✗ Error: Number must be finite
+number.decode(Infinity);   // ✗ Error: Number must be finite
+```
+
+## integer
+
+Accepts only finite whole numbers.
+
+```typescript
+const integer: Decoder<number>
+```
+
+### Example
+
+```typescript
+import { integer } from 'decoders';
+
+integer.decode(42);    // ✓ 42
+integer.decode(-10);   // ✓ -10
+integer.decode(3.14);  // ✗ Error: Number must be an integer
+```
+
+## positiveNumber
+
+Accepts only non-negative (zero or positive) finite numbers.
+
+```typescript
+const positiveNumber: Decoder<number>
+```
+
+### Example
+
+```typescript
+import { positiveNumber } from 'decoders';
+
+positiveNumber.decode(42);     // ✓ 42
+positiveNumber.decode(0);      // ✓ 0
+positiveNumber.decode(3.14);   // ✓ 3.14
+positiveNumber.decode(-5);     // ✗ Error: Number must be positive
+```
+
+## positiveInteger
+
+Accepts only non-negative (zero or positive) finite whole numbers.
+
+```typescript
+const positiveInteger: Decoder<number>
+```
+
+### Example
+
+```typescript
+import { positiveInteger } from 'decoders';
+
+positiveInteger.decode(42);    // ✓ 42
+positiveInteger.decode(0);     // ✓ 0
+positiveInteger.decode(-5);    // ✗ Error: Number must be positive
+positiveInteger.decode(3.14);  // ✗ Error: Number must be an integer
+```
+
+## min
+
+Accepts numbers greater than or equal to the given minimum. Defaults to the `number` decoder if none is provided. Pass a different decoder to further restrict accepted values, e.g. `min(0, integer)`.
+
+```typescript
+function min(min: number, decoder?: Decoder<number>): Decoder<number>
+```
+
+### Parameters
+
+- `min` - The minimum allowed value (inclusive)
+- `decoder` - Optional base decoder (defaults to `number`)
+
+### Example
+
+```typescript
+import { min, integer } from 'decoders';
+
+const atLeast10 = min(10);
+atLeast10.decode(15);    // ✓ 15
+atLeast10.decode(10);    // ✓ 10
+atLeast10.decode(5);     // ✗ Error: Too low, must be at least 10
+
+// With integer constraint
+const atLeast10Int = min(10, integer);
+atLeast10Int.decode(15);    // ✓ 15
+atLeast10Int.decode(15.5);  // ✗ Error: Number must be an integer
+```
+
+## max
+
+Accepts numbers less than or equal to the given maximum. Defaults to the `number` decoder if none is provided. Pass a different decoder to further restrict accepted values, e.g. `max(100, integer)`.
+
+```typescript
+function max(max: number, decoder?: Decoder<number>): Decoder<number>
+```
+
+### Parameters
+
+- `max` - The maximum allowed value (inclusive)
+- `decoder` - Optional base decoder (defaults to `number`)
+
+### Example
+
+```typescript
+import { max, integer } from 'decoders';
+
+const atMost100 = max(100);
+atMost100.decode(50);    // ✓ 50
+atMost100.decode(100);   // ✓ 100
+atMost100.decode(150);   // ✗ Error: Too high, must be at most 100
+
+// With integer constraint
+const atMost100Int = max(100, integer);
+atMost100Int.decode(50);    // ✓ 50
+atMost100Int.decode(50.5);  // ✗ Error: Number must be an integer
+```
+
+## between
+
+Accepts numbers within the given range (bounds are inclusive). Defaults to the `number` decoder if none is provided. Pass a different decoder to further restrict accepted values, e.g. `between(1, 10, integer)`.
+
+```typescript
+function between(
+  min: number,
+  max: number,
+  decoder?: Decoder<number>
+): Decoder<number>
+```
+
+### Parameters
+
+- `min` - The minimum allowed value (inclusive)
+- `max` - The maximum allowed value (inclusive)
+- `decoder` - Optional base decoder (defaults to `number`)
+
+### Example
+
+```typescript
+import { between, integer } from 'decoders';
+
+const percentage = between(0, 100);
+percentage.decode(50);     // ✓ 50
+percentage.decode(0);      // ✓ 0
+percentage.decode(100);    // ✓ 100
+percentage.decode(150);    // ✗ Error: Too high, must be between 0 and 100
+percentage.decode(-10);    // ✗ Error: Too low, must be between 0 and 100
+
+// Dice roll (1-6, integers only)
+const diceRoll = between(1, 6, integer);
+diceRoll.decode(4);      // ✓ 4
+diceRoll.decode(3.5);    // ✗ Error: Number must be an integer
+```

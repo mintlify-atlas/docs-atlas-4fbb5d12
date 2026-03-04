@@ -1,0 +1,198 @@
+---
+title: setFromArray
+description: Validate arrays and return ES6 Set instances
+---
+
+## Overview
+
+The `setFromArray()` decoder validates arrays using a given decoder and returns the result as an ES6 `Set<T>`. This automatically removes duplicates and provides Set-specific methods.
+
+## Basic Usage
+
+```typescript
+import { setFromArray, string } from 'decoders';
+
+const tagsDecoder = setFromArray(string);
+
+const result = tagsDecoder.verify(['typescript', 'validation', 'decoders', 'typescript']);
+// Type: Set<string>
+// Result: Set { 'typescript', 'validation', 'decoders' }
+// Note: Duplicate 'typescript' was automatically removed
+
+result.has('typescript'); // true
+result.size; // 3
+```
+
+## Type Signature
+
+```typescript
+function setFromArray<T>(decoder: Decoder<T>): Decoder<Set<T>>;
+```
+
+## Parameters
+
+<ParamField path="decoder" type="Decoder<T>" required>
+  Decoder to validate each element in the array. The validated array is then converted to a Set.
+</ParamField>
+
+## Return Value
+
+Returns a `Decoder<Set<T>>` that validates arrays and converts them to ES6 Set instances.
+
+## Examples
+
+### Unique identifiers
+
+```typescript
+import { setFromArray, number } from 'decoders';
+
+const userIdsDecoder = setFromArray(number);
+
+const userIds = userIdsDecoder.verify([101, 102, 103, 101, 102]);
+// Type: Set<number>
+// Result: Set { 101, 102, 103 }
+
+console.log(userIds.size); // 3 (duplicates removed)
+```
+
+### Complex objects
+
+```typescript
+import { setFromArray, object, string } from 'decoders';
+
+const categoriesDecoder = setFromArray(
+  object({
+    id: string,
+    name: string,
+  })
+);
+
+const categories = categoriesDecoder.verify([
+  { id: 'tech', name: 'Technology' },
+  { id: 'sci', name: 'Science' },
+  { id: 'tech', name: 'Technology' }, // Duplicate
+]);
+// Type: Set<{ id: string; name: string }>
+// Result: Set with 2 or 3 items (depending on object reference equality)
+```
+
+<Warning>
+  When using `setFromArray()` with objects, be aware that Set uses reference equality. Two objects with the same values are considered different if they're different instances:
+  
+  ```typescript
+  const set = new Set([{ id: 1 }, { id: 1 }]);
+  console.log(set.size); // 2 (not 1!)
+  ```
+  
+  For deduplication based on values, you may need to use additional logic or work with primitive values.
+</Warning>
+
+### Enum values
+
+```typescript
+import { setFromArray, string } from 'decoders';
+
+const validRoles = ['admin', 'user', 'guest'] as const;
+const roleDecoder = oneOf(validRoles);
+const rolesSetDecoder = setFromArray(roleDecoder);
+
+const roles = rolesSetDecoder.verify(['admin', 'user', 'admin']);
+// Type: Set<'admin' | 'user' | 'guest'>
+// Result: Set { 'admin', 'user' }
+```
+
+### Converting Set back to array
+
+```typescript
+import { setFromArray, number } from 'decoders';
+
+const numbersDecoder = setFromArray(number);
+
+const uniqueNumbers = numbersDecoder.verify([1, 2, 3, 2, 1]);
+// Type: Set<number>
+
+// Convert back to array if needed
+const arrayAgain = Array.from(uniqueNumbers);
+// or
+const arrayAgain2 = [...uniqueNumbers];
+```
+
+## Implementation Details
+
+The `setFromArray()` decoder is built on top of `array()` and uses the `.transform()` method to convert the validated array to a Set:
+
+```typescript
+// Simplified implementation
+export function setFromArray<T>(decoder: Decoder<T>): Decoder<Set<T>> {
+  return array(decoder).transform((items) => new Set(items));
+}
+```
+
+## When to Use
+
+Use `setFromArray()` instead of `array()` when:
+
+- You need to ensure uniqueness (no duplicates)
+- You need Set-specific methods like `.has()`, `.add()`, `.delete()`
+- You want to check membership efficiently (O(1) average case)
+- Order doesn't matter or you want to de-duplicate
+
+<Note>
+  If you need to preserve all elements including duplicates, or if order matters, use [`array()`](/api/arrays/array) instead.
+</Note>
+
+## Error Handling
+
+`setFromArray()` inherits error handling from `array()`, providing detailed error messages for invalid elements:
+
+```typescript
+import { setFromArray, number } from 'decoders';
+
+const decoder = setFromArray(number);
+
+try {
+  decoder.verify([1, 2, 'invalid', 4]);
+} catch (error) {
+  console.error(error.message);
+  // Error indicates which array index failed validation
+}
+```
+
+## Set Operations
+
+Once you have a Set, you can use all standard Set methods:
+
+```typescript
+import { setFromArray, string } from 'decoders';
+
+const tagsDecoder = setFromArray(string);
+const tags = tagsDecoder.verify(['a', 'b', 'c']);
+
+// Membership test
+tags.has('a'); // true
+
+// Add elements
+tags.add('d');
+
+// Remove elements
+tags.delete('b');
+
+// Iterate
+for (const tag of tags) {
+  console.log(tag);
+}
+
+// Size
+console.log(tags.size);
+```
+
+## Related Decoders
+
+- [`array`](/api/arrays/array) - Validates arrays and returns them as arrays
+- [`mapping`](/api/collections/mapping) - Validates objects and returns ES6 Map instances
+- [`tuple`](/api/arrays/tuple) - For fixed-length arrays with specific types
+
+## See Also
+
+- [MDN: Set](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Set)
+- [Array validation guide](/guides/array-validation)

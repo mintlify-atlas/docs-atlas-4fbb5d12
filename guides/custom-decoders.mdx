@@ -1,0 +1,330 @@
+---
+title: Custom Decoders
+description: Create your own validation decoders with the define() function
+---
+
+While the library provides many built-in decoders, you can create custom decoders for specialized validation logic using the `define()` function.
+
+## The define() Function
+
+The `define()` function is the foundation for creating custom decoders. It takes an acceptance function that receives three parameters:
+
+1. `blob` - The untrusted input value to validate
+2. `ok` - A function to call when accepting the input
+3. `err` - A function to call when rejecting the input
+
+```typescript
+import { define } from 'decoders';
+import type { Decoder } from 'decoders';
+
+// Basic custom decoder
+const positiveString: Decoder<string> = define((blob, ok, err) => {
+  if (typeof blob !== 'string') {
+    return err('Must be string');
+  }
+  if (blob.length === 0) {
+    return err('Must be non-empty');
+  }
+  return ok(blob);
+});
+
+positiveString.verify('hello'); // 'hello'
+positiveString.verify(''); // Error: Must be non-empty
+positiveString.verify(123); // Error: Must be string
+```
+
+## Simple Custom Validators
+
+Here are examples of creating simple custom decoders:
+
+```typescript
+import { define } from 'decoders';
+
+// Validate even numbers
+const evenNumber = define((blob, ok, err) => {
+  if (typeof blob !== 'number') {
+    return err('Must be number');
+  }
+  if (blob % 2 !== 0) {
+    return err('Must be even number');
+  }
+  return ok(blob);
+});
+
+evenNumber.verify(4); // 4
+evenNumber.verify(5); // Error: Must be even number
+
+// Validate port numbers
+const portNumber = define((blob, ok, err) => {
+  if (typeof blob !== 'number' || !Number.isInteger(blob)) {
+    return err('Must be integer');
+  }
+  if (blob < 1 || blob > 65535) {
+    return err('Must be between 1 and 65535');
+  }
+  return ok(blob);
+});
+
+portNumber.verify(8080); // 8080
+portNumber.verify(99999); // Error: Must be between 1 and 65535
+```
+
+## Building on Existing Decoders
+
+Often, you'll want to build custom decoders on top of existing ones. You can call other decoders from within your custom decoder:
+
+```typescript
+import { define, string } from 'decoders';
+
+// Username: non-empty string, alphanumeric + underscore only
+const username = define((blob, ok, err) => {
+  // First, verify it's a string
+  const stringResult = string.decode(blob);
+  if (!stringResult.ok) {
+    return err(stringResult.error);
+  }
+
+  const value = stringResult.value;
+  
+  // Then apply custom validation
+  if (!/^[a-zA-Z0-9_]+$/.test(value)) {
+    return err('Username must contain only letters, numbers, and underscores');
+  }
+  
+  if (value.length < 3) {
+    return err('Username must be at least 3 characters');
+  }
+  
+  return ok(value);
+});
+
+username.verify('john_doe'); // 'john_doe'
+username.verify('ab'); // Error: Username must be at least 3 characters
+username.verify('john-doe'); // Error: Username must contain only letters, numbers, and underscores
+```
+
+## Type Transformations
+
+Custom decoders can transform the input type:
+
+```typescript
+import { define, string } from 'decoders';
+
+// Parse JSON string into object
+const jsonString = define<unknown>((blob, ok, err) => {
+  if (typeof blob !== 'string') {
+    return err('Must be string');
+  }
+  
+  try {
+    const parsed = JSON.parse(blob);
+    return ok(parsed);
+  } catch (e) {
+    return err('Must be valid JSON');
+  }
+});
+
+jsonString.verify('{"name":"Alice"}'); // { name: 'Alice' }
+jsonString.verify('invalid json'); // Error: Must be valid JSON
+
+// Convert string to Date
+const dateFromString = define<Date>((blob, ok, err) => {
+  if (typeof blob !== 'string') {
+    return err('Must be string');
+  }
+  
+  const date = new Date(blob);
+  if (isNaN(date.getTime())) {
+    return err('Must be valid date string');
+  }
+  
+  return ok(date);
+});
+
+dateFromString.verify('2024-01-01'); // Date object
+dateFromString.verify('invalid'); // Error: Must be valid date string
+```
+
+## Reusable Decoder Factories
+
+Create functions that generate customized decoders:
+
+```typescript
+import { define, number } from 'decoders';
+import type { Decoder } from 'decoders';
+
+// Factory for creating range validators
+function range(min: number, max: number): Decoder<number> {
+  return define((blob, ok, err) => {
+    const numResult = number.decode(blob);
+    if (!numResult.ok) {
+      return err(numResult.error);
+    }
+    
+    const value = numResult.value;
+    if (value < min || value > max) {
+      return err(`Must be between ${min} and ${max}`);
+    }
+    
+    return ok(value);
+  });
+}
+
+const percentage = range(0, 100);
+const age = range(0, 150);
+
+percentage.verify(50); // 50
+percentage.verify(150); // Error: Must be between 0 and 100
+
+age.verify(30); // 30
+age.verify(200); // Error: Must be between 0 and 150
+```
+
+## Advanced: Async Validation
+
+While decoders are synchronous by design, you can wrap async validation:
+
+```typescript
+import { define, string } from 'decoders';
+
+// Synchronous decoder that validates the shape
+const emailShape = string.refine(
+  s => /^[^@]+@[^@]+$/.test(s),
+  'Must be valid email format'
+);
+
+// Async function for additional validation
+async function validateEmail(email: string): Promise<string> {
+  // First, validate the shape (throws if invalid)
+  const validated = emailShape.verify(email);
+  
+  // Then perform async checks
+  // const exists = await checkEmailExists(validated);
+  // if (!exists) throw new Error('Email not found');
+  
+  return validated;
+}
+
+// Usage
+try {
+  const email = await validateEmail('user@example.com');
+  console.log('Valid email:', email);
+} catch (error) {
+  console.error('Invalid email:', error.message);
+}
+```
+
+## Complex Custom Decoders
+
+Here's a more complex example combining multiple validation steps:
+
+```typescript
+import { define, object, string, number } from 'decoders';
+import type { Decoder } from 'decoders';
+
+interface Color {
+  r: number;
+  g: number;
+  b: number;
+}
+
+// Decoder that accepts hex color strings OR RGB objects
+const color: Decoder<Color> = define<Color>((blob, ok, err) => {
+  // Try parsing as hex string
+  if (typeof blob === 'string') {
+    const hex = blob.replace(/^#/, '');
+    
+    if (!/^[0-9a-f]{6}$/i.test(hex)) {
+      return err('Invalid hex color format');
+    }
+    
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    
+    return ok({ r, g, b });
+  }
+  
+  // Try parsing as RGB object
+  const rgbDecoder = object({
+    r: number,
+    g: number,
+    b: number,
+  });
+  
+  const result = rgbDecoder.decode(blob);
+  if (!result.ok) {
+    return err('Must be hex color string or RGB object');
+  }
+  
+  const { r, g, b } = result.value;
+  
+  // Validate range
+  if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255) {
+    return err('RGB values must be between 0 and 255');
+  }
+  
+  return ok({ r, g, b });
+});
+
+color.verify('#ff6600'); // { r: 255, g: 102, b: 0 }
+color.verify({ r: 255, g: 102, b: 0 }); // { r: 255, g: 102, b: 0 }
+color.verify('#xyz'); // Error: Invalid hex color format
+color.verify({ r: 300, g: 0, b: 0 }); // Error: RGB values must be between 0 and 255
+```
+
+## Error Handling Best Practices
+
+```typescript
+import { define, annotate } from 'decoders';
+
+// Provide helpful error messages
+const password = define((blob, ok, err) => {
+  if (typeof blob !== 'string') {
+    return err('Must be string');
+  }
+  
+  if (blob.length < 8) {
+    return err('Password must be at least 8 characters');
+  }
+  
+  if (!/[A-Z]/.test(blob)) {
+    return err('Password must contain at least one uppercase letter');
+  }
+  
+  if (!/[a-z]/.test(blob)) {
+    return err('Password must contain at least one lowercase letter');
+  }
+  
+  if (!/[0-9]/.test(blob)) {
+    return err('Password must contain at least one number');
+  }
+  
+  return ok(blob);
+});
+
+password.verify('weakpwd'); // Error: Password must be at least 8 characters
+password.verify('weakpassword'); // Error: Password must contain at least one uppercase letter
+password.verify('StrongPass1'); // 'StrongPass1'
+```
+
+## When to Use Custom Decoders
+
+Create custom decoders when:
+
+- You need domain-specific validation logic
+- Built-in decoders don't cover your use case
+- You want to encapsulate complex validation rules
+- You need to transform data during validation
+- You're validating against external constraints (like database uniqueness)
+
+For simpler cases, consider using:
+- `.refine()` for adding predicates to existing decoders
+- `.transform()` for transforming validated values
+- `.reject()` for conditional rejection with dynamic error messages
+
+## Next Steps
+
+- Learn about [transformations](/guides/transformations) for modifying validated data
+- Explore [refinements](/guides/refinements) for adding validation predicates
+- Check out the [API reference](/api-reference) for all available decoders

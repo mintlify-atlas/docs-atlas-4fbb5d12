@@ -1,0 +1,47 @@
+---
+title: Boolean Decoders
+description: Decoders for validating and transforming boolean values
+---
+
+## boolean
+
+Accepts and returns booleans.
+
+```typescript
+const boolean: Decoder<boolean>
+```
+
+### Example
+
+```typescript
+import { boolean } from 'decoders';
+
+boolean.decode(true);    // ✓ true
+boolean.decode(false);   // ✓ false
+boolean.decode(1);       // ✗ Error: Must be boolean
+boolean.decode('true');  // ✗ Error: Must be boolean
+```
+
+## truthy
+
+Accepts anything and will return its "truth" value. Will never reject.
+
+```typescript
+const truthy: Decoder<boolean>
+```
+
+### Example
+
+```typescript
+import { truthy } from 'decoders';
+
+truthy.decode(true);       // ✓ true
+truthy.decode(false);      // ✓ false
+truthy.decode(1);          // ✓ true
+truthy.decode(0);          // ✓ false
+truthy.decode('hello');    // ✓ true
+truthy.decode('');         // ✓ false
+truthy.decode(null);       // ✓ false
+truthy.decode(undefined);  // ✓ false
+truthy.decode([]);         // ✓ true
+```

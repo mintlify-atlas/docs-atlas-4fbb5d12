@@ -1,0 +1,338 @@
+---
+title: Transformations
+description: Transform and modify data after validation using the transform() method
+---
+
+Transformations allow you to modify validated data, converting it into a different format or shape. This is useful for normalizing data, computing derived values, or adapting external data to your application's types.
+
+## The transform() Method
+
+Every decoder has a `.transform()` method that accepts a function to modify the validated value.
+
+```typescript
+import { string, number } from 'decoders';
+
+// Convert string to uppercase
+const uppercaseString = string.transform(s => s.toUpperCase());
+
+uppercaseString.verify('hello'); // 'HELLO'
+uppercaseString.verify('world'); // 'WORLD'
+
+// Double a number
+const doubleNumber = number.transform(n => n * 2);
+
+doubleNumber.verify(5); // 10
+doubleNumber.verify(21); // 42
+```
+
+The transformation function runs **after** validation succeeds, so you can safely assume the input matches the decoder's type.
+
+## String Transformations
+
+```typescript
+import { string } from 'decoders';
+
+// Trim whitespace
+const trimmedString = string.transform(s => s.trim());
+
+trimmedString.verify('  hello  '); // 'hello'
+
+// Convert to lowercase
+const lowercaseEmail = string.transform(s => s.toLowerCase());
+
+lowercaseEmail.verify('User@Example.COM'); // 'user@example.com'
+
+// Extract substring
+const firstThreeChars = string.transform(s => s.slice(0, 3));
+
+firstThreeChars.verify('hello'); // 'hel'
+
+// Split into array
+const csvToArray = string.transform(s => s.split(','));
+
+csvToArray.verify('apple,banana,orange'); // ['apple', 'banana', 'orange']
+```
+
+## Number Transformations
+
+```typescript
+import { number, string } from 'decoders';
+
+// Round to nearest integer
+const roundedNumber = number.transform(n => Math.round(n));
+
+roundedNumber.verify(3.7); // 4
+roundedNumber.verify(3.2); // 3
+
+// Convert to string
+const numberToString = number.transform(n => n.toString());
+
+numberToString.verify(42); // '42'
+
+// Format as currency
+const currency = number.transform(n => `$${n.toFixed(2)}`);
+
+currency.verify(9.5); // '$9.50'
+currency.verify(100); // '$100.00'
+```
+
+## Type Conversions
+
+Transformations can change the output type:
+
+```typescript
+import { string, number, decimal, numeric } from 'decoders';
+
+// String to number (using built-in numeric decoder)
+// numeric is actually: decimal.transform(Number)
+numeric.verify('42'); // 42 (number)
+
+// String to Date
+const stringToDate = string.transform(s => new Date(s));
+
+stringToDate.verify('2024-01-01'); // Date object
+
+// String to boolean
+const stringToBoolean = string.transform(s => s.toLowerCase() === 'true');
+
+stringToBoolean.verify('true'); // true
+stringToBoolean.verify('false'); // false
+stringToBoolean.verify('True'); // true
+```
+
+## Object Transformations
+
+```typescript
+import { object, string, number } from 'decoders';
+
+// Add computed field
+const personDecoder = object({
+  firstName: string,
+  lastName: string,
+}).transform(person => ({
+  ...person,
+  fullName: `${person.firstName} ${person.lastName}`,
+}));
+
+personDecoder.verify({ firstName: 'John', lastName: 'Doe' });
+// Returns: { firstName: 'John', lastName: 'Doe', fullName: 'John Doe' }
+
+// Rename fields
+const apiUserDecoder = object({
+  user_name: string,
+  user_email: string,
+}).transform(data => ({
+  username: data.user_name,
+  email: data.user_email,
+}));
+
+apiUserDecoder.verify({ user_name: 'alice', user_email: 'alice@example.com' });
+// Returns: { username: 'alice', email: 'alice@example.com' }
+
+// Flatten nested structure
+const flattenedDecoder = object({
+  user: object({
+    name: string,
+    email: string,
+  }),
+  metadata: object({
+    created: string,
+  }),
+}).transform(data => ({
+  name: data.user.name,
+  email: data.user.email,
+  created: data.metadata.created,
+}));
+```
+
+## Array Transformations
+
+```typescript
+import { array, string, number } from 'decoders';
+
+// Sort array
+const sortedNumbers = array(number).transform(arr => [...arr].sort((a, b) => a - b));
+
+sortedNumbers.verify([3, 1, 4, 1, 5, 9]); // [1, 1, 3, 4, 5, 9]
+
+// Filter array
+const evenNumbers = array(number).transform(arr => arr.filter(n => n % 2 === 0));
+
+evenNumbers.verify([1, 2, 3, 4, 5, 6]); // [2, 4, 6]
+
+// Map array
+const upperCaseArray = array(string).transform(arr => arr.map(s => s.toUpperCase()));
+
+upperCaseArray.verify(['hello', 'world']); // ['HELLO', 'WORLD']
+
+// Get array length
+const arrayLength = array(string).transform(arr => arr.length);
+
+arrayLength.verify(['a', 'b', 'c']); // 3
+```
+
+## Chaining Transformations
+
+You can chain multiple transformations together:
+
+```typescript
+import { string } from 'decoders';
+
+const processedString = string
+  .transform(s => s.trim()) // First, trim whitespace
+  .transform(s => s.toLowerCase()) // Then, convert to lowercase
+  .transform(s => s.replace(/\s+/g, '-')); // Finally, replace spaces with hyphens
+
+processedString.verify('  Hello World  '); // 'hello-world'
+```
+
+## Combining with Pipe
+
+Use `.pipe()` to validate the transformed result with another decoder:
+
+```typescript
+import { string, array, nonEmptyString } from 'decoders';
+
+// Split string into array, then validate each element
+const tagList = string
+  .transform(s => s.split(','))
+  .pipe(array(nonEmptyString));
+
+tagList.verify('javascript,typescript,react'); // ['javascript', 'typescript', 'react']
+tagList.verify('valid,,invalid'); // Error: Must be non-empty string (at index 1)
+```
+
+## Error Handling in Transformations
+
+If a transformation function throws an error, the decoder will fail with that error message:
+
+```typescript
+import { string } from 'decoders';
+
+// Transformation that might throw
+const parseJson = string.transform(s => {
+  return JSON.parse(s); // Throws on invalid JSON
+});
+
+parseJson.verify('{"valid": "json"}'); // { valid: 'json' }
+parseJson.verify('invalid json'); // Error: Unexpected token 'i', "invalid json" is not valid JSON
+```
+
+For better error messages, catch and re-throw with custom messages:
+
+```typescript
+import { string } from 'decoders';
+
+const parseJson = string.transform(s => {
+  try {
+    return JSON.parse(s);
+  } catch {
+    throw new Error('Invalid JSON format');
+  }
+});
+
+parseJson.verify('invalid'); // Error: Invalid JSON format
+```
+
+## Real-World Examples
+
+### Normalizing Phone Numbers
+
+```typescript
+import { string } from 'decoders';
+
+const phoneNumber = string
+  .transform(s => s.replace(/\D/g, '')) // Remove non-digits
+  .refine(s => s.length === 10, 'Phone number must be 10 digits')
+  .transform(s => `(${s.slice(0, 3)}) ${s.slice(3, 6)}-${s.slice(6)}`);
+
+phoneNumber.verify('123-456-7890'); // '(123) 456-7890'
+phoneNumber.verify('(123) 456-7890'); // '(123) 456-7890'
+phoneNumber.verify('1234567890'); // '(123) 456-7890'
+```
+
+### Converting API Response
+
+```typescript
+import { object, string, number, array } from 'decoders';
+
+// API returns snake_case, convert to camelCase
+const userDecoder = object({
+  user_id: number,
+  first_name: string,
+  last_name: string,
+  email_address: string,
+}).transform(data => ({
+  userId: data.user_id,
+  firstName: data.first_name,
+  lastName: data.last_name,
+  emailAddress: data.email_address,
+}));
+
+const usersDecoder = array(userDecoder);
+```
+
+### Parsing Date Strings
+
+```typescript
+import { string, isoDate } from 'decoders';
+
+// isoDate is actually implemented as:
+// isoDateString.transform(value => new Date(value))
+
+isoDate.verify('2024-01-01T12:00:00Z'); // Date object
+```
+
+### URL Parsing
+
+```typescript
+import { string, regex, url } from 'decoders';
+
+// url decoder is implemented as:
+// regex(urlRegex, 'Must be URL').transform(value => new URL(value))
+
+url.verify('https://example.com/path'); // URL instance
+
+const hostname = url.transform(u => u.hostname);
+hostname.verify('https://example.com/path'); // 'example.com'
+```
+
+## When to Use Transformations
+
+Use transformations when you need to:
+
+- **Normalize data**: Convert to consistent format (trim, lowercase, etc.)
+- **Convert types**: String to number, string to Date, etc.
+- **Compute values**: Add derived fields, calculate totals
+- **Reshape data**: Rename fields, flatten structures, extract subsets
+- **Format output**: Apply formatting rules for display
+
+## Transform vs Refine vs Reject
+
+- **`.transform(fn)`**: Modify the validated value (changes the value)
+- **`.refine(predicate, msg)`**: Add validation constraint (keeps the value)
+- **`.reject(fn)`**: Conditional rejection with dynamic error messages
+
+```typescript
+import { number } from 'decoders';
+
+// Transform: changes the value
+const doubled = number.transform(n => n * 2);
+doubled.verify(5); // 10
+
+// Refine: adds validation but keeps value unchanged
+const positive = number.refine(n => n > 0, 'Must be positive');
+positive.verify(5); // 5
+
+// Reject: dynamic error messages
+const ranged = number.reject(n => 
+  n < 0 ? 'Too low' : n > 100 ? 'Too high' : null
+);
+ranged.verify(50); // 50
+```
+
+## Next Steps
+
+- Learn about [refinements](/guides/refinements) for custom validation logic
+- Explore [custom decoders](/guides/custom-decoders) for advanced use cases
+- Check out the [API reference](/api-reference) for all decoder methods

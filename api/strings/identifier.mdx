@@ -1,0 +1,91 @@
+---
+title: identifier
+description: Validates programming language identifier strings
+---
+
+# identifier
+
+Accepts and returns strings that are valid identifiers in most programming languages.
+
+## Type Signature
+
+```typescript
+const identifier: Decoder<string>
+```
+
+## Validation Pattern
+
+Validates identifier naming conventions:
+- Must start with a letter (a-z, A-Z) or underscore (`_`)
+- Followed by any combination of letters, digits (0-9), or underscores
+- Case-insensitive
+
+Regex pattern:
+```regex
+/^[a-z_][a-z0-9_]*$/i
+```
+
+## Valid Inputs
+
+```typescript
+import { identifier } from 'decoders';
+
+identifier.verify('myVariable');      // ✓ 'myVariable'
+identifier.verify('_privateMethod');  // ✓ '_privateMethod'
+identifier.verify('user123');         // ✓ 'user123'
+identifier.verify('CLASS_NAME');      // ✓ 'CLASS_NAME'
+identifier.verify('a');               // ✓ 'a'
+identifier.verify('_');               // ✓ '_'
+identifier.verify('snake_case_var');  // ✓ 'snake_case_var'
+identifier.verify('camelCaseVar');    // ✓ 'camelCaseVar'
+identifier.verify('PascalCase');      // ✓ 'PascalCase'
+```
+
+## Invalid Inputs
+
+```typescript
+identifier.verify('123abc');          // ✗ Must be valid identifier (starts with digit)
+identifier.verify('my-variable');     // ✗ Must be valid identifier (contains hyphen)
+identifier.verify('my.variable');     // ✗ Must be valid identifier (contains dot)
+identifier.verify('my variable');     // ✗ Must be valid identifier (contains space)
+identifier.verify('user@name');       // ✗ Must be valid identifier (contains @)
+identifier.verify('');                // ✗ Must be valid identifier (empty string)
+identifier.verify('$var');            // ✗ Must be valid identifier ($ not allowed)
+identifier.verify(123);               // ✗ Must be string
+```
+
+## Error Message
+
+When validation fails: `"Must be valid identifier"`
+
+## Implementation
+
+```typescript
+export const identifier: Decoder<string> = regex(
+  /^[a-z_][a-z0-9_]*$/i,
+  'Must be valid identifier',
+);
+```
+
+Source: `src/strings.ts:98-101`
+
+## Use Cases
+
+- Validating variable names in code generators
+- Checking function or class names
+- Ensuring database column/table names follow conventions
+- Validating API parameter names
+- Configuration key validation
+
+## Notes
+
+- This pattern matches identifiers in languages like JavaScript, Python, Java, C++, etc.
+- Does not validate against language-specific reserved keywords
+- Does not allow Unicode identifiers (only ASCII)
+- Does not allow dollar signs (`$`), which are valid in some languages like JavaScript
+
+## Related Decoders
+
+- [regex](/api/strings/regex) - Create custom string pattern validators
+- [startsWith](/api/strings/regex#startswith) - Match strings with specific prefixes
+- [endsWith](/api/strings/regex#endswith) - Match strings with specific suffixes

@@ -1,0 +1,212 @@
+---
+title: JSON Decoders
+description: Decoders for validating JSON data structures
+---
+
+The JSON decoders validate data that conforms to the JSON specification. These are useful when working with data from `JSON.parse()` or APIs that return generic JSON.
+
+## json
+
+Accepts any valid JSON value.
+
+```typescript
+const json: Decoder<JSONValue>
+```
+
+Valid JSON values are: `null`, strings, numbers, booleans, objects, or arrays.
+
+### Type Definition
+
+```typescript
+type JSONValue = 
+  | null 
+  | string 
+  | number 
+  | boolean 
+  | JSONObject 
+  | JSONArray
+
+type JSONObject = { [key: string]: JSONValue | undefined }
+type JSONArray = JSONValue[]
+```
+
+### Example
+
+```typescript
+import { json } from 'decoders';
+
+json.decode(null);                         // ✓ null
+json.decode('hello');                      // ✓ 'hello'
+json.decode(42);                           // ✓ 42
+json.decode(true);                         // ✓ true
+json.decode({ key: 'value' });             // ✓ { key: 'value' }
+json.decode([1, 2, 3]);                    // ✓ [1, 2, 3]
+json.decode({ nested: { data: [1, 2] } }); // ✓ nested structure
+
+json.decode(undefined);                    // ✗ Error: Must be valid JSON value
+json.decode(() => {});                     // ✗ Error: Must be valid JSON value
+json.decode(new Date());                   // ✗ Error: Must be valid JSON value
+```
+
+### Use Cases
+
+The `json` decoder is useful when:
+
+- Validating data from `JSON.parse()`
+- Working with APIs that return arbitrary JSON
+- Accepting generic JSON payloads
+- Building JSON validators
+
+```typescript
+import { json } from 'decoders';
+
+// Parse and validate JSON from a string
+const jsonString = '{"status": "ok", "data": [1, 2, 3]}';
+const data = json.verify(JSON.parse(jsonString));
+// data is type-safe as JSONValue
+```
+
+## jsonObject
+
+Accepts objects that contain only valid JSON values.
+
+```typescript
+const jsonObject: Decoder<JSONObject>
+```
+
+This is equivalent to `record(json)` but specifically typed for JSON objects.
+
+### Example
+
+```typescript
+import { jsonObject } from 'decoders';
+
+jsonObject.decode({ key: 'value' });              // ✓
+jsonObject.decode({ nested: { data: true } });    // ✓
+jsonObject.decode({ arr: [1, 2, 3] });            // ✓
+jsonObject.decode({});                            // ✓ empty object
+
+jsonObject.decode([1, 2, 3]);                     // ✗ Error: Must be an object
+jsonObject.decode('string');                      // ✗ Error: Must be an object
+jsonObject.decode({ fn: () => {} });              // ✗ Error: invalid JSON value
+```
+
+### Use Cases
+
+Use `jsonObject` when you specifically expect an object (not an array or primitive) containing JSON-compatible values:
+
+```typescript
+import { jsonObject } from 'decoders';
+
+// API response that's definitely an object
+async function fetchConfig() {
+  const response = await fetch('/api/config');
+  const data = await response.json();
+  return jsonObject.verify(data);
+}
+```
+
+## jsonArray
+
+Accepts arrays that contain only valid JSON values.
+
+```typescript
+const jsonArray: Decoder<JSONArray>
+```
+
+This is equivalent to `array(json)` but specifically typed for JSON arrays.
+
+### Example
+
+```typescript
+import { jsonArray } from 'decoders';
+
+jsonArray.decode([1, 2, 3]);                      // ✓
+jsonArray.decode(['a', 'b', 'c']);                // ✓
+jsonArray.decode([{ key: 'value' }, null]);       // ✓
+jsonArray.decode([]);                             // ✓ empty array
+
+jsonArray.decode({ key: 'value' });               // ✗ Error: Must be an array
+jsonArray.decode('string');                       // ✗ Error: Must be an array
+jsonArray.decode([() => {}]);                     // ✗ Error: invalid JSON value
+```
+
+### Use Cases
+
+Use `jsonArray` when you specifically expect an array of JSON-compatible values:
+
+```typescript
+import { jsonArray } from 'decoders';
+
+// API response that's definitely an array
+async function fetchItems() {
+  const response = await fetch('/api/items');
+  const data = await response.json();
+  return jsonArray.verify(data);
+}
+```
+
+## Working with Generic JSON
+
+When you need to validate JSON but don't know the exact structure:
+
+```typescript
+import { json, jsonObject, jsonArray } from 'decoders';
+
+// Accept any JSON
+function processJson(input: unknown) {
+  const data = json.verify(input);
+  // data: JSONValue
+  
+  // Narrow the type with type guards
+  if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+    // data is JSONObject
+    console.log('Object with keys:', Object.keys(data));
+  }
+}
+
+// Or use specific decoders
+function processObject(input: unknown) {
+  const obj = jsonObject.verify(input);
+  // obj: JSONObject - guaranteed to be an object
+  return Object.keys(obj).length;
+}
+```
+
+## Comparison with Specific Decoders
+
+JSON decoders are less strict than specific decoders:
+
+```typescript
+import { object, string, number, jsonObject } from 'decoders';
+
+// Specific structure
+const userDecoder = object({
+  name: string,
+  age: number,
+});
+
+// Generic JSON object
+const genericDecoder = jsonObject;
+
+const data = { name: 'Alice', age: 30, extra: 'field' };
+
+userDecoder.decode(data);   // ✓ Validates exact structure
+genericDecoder.decode(data); // ✓ Accepts any valid JSON object
+```
+
+Use JSON decoders when:
+- You don't know the structure in advance
+- You're building generic JSON tools
+- You need maximum flexibility
+
+Use specific decoders when:
+- You know the expected structure
+- You need type-safe field access
+- You want better error messages
+
+## Related
+
+- [object()](/api/objects/object) - For validating specific object shapes
+- [array()](/api/arrays/array) - For validating specific array types
+- [record()](/api/collections/record) - For dynamic key-value maps

@@ -1,0 +1,254 @@
+---
+title: enum_
+description: Decoder for TypeScript enum values
+---
+
+The `enum_()` decoder validates TypeScript enum values, handling both string and numeric enums correctly.
+
+## Signature
+
+```typescript
+function enum_<TEnum extends Record<string, string | number>>(
+  enumObj: TEnum
+): Decoder<TEnum[keyof TEnum]>
+```
+
+<Note>
+The function is named `enum_` (with underscore) because `enum` is a reserved keyword in JavaScript.
+</Note>
+
+## Basic Usage
+
+### String Enums
+
+```typescript
+import { enum_ } from 'decoders';
+
+enum Color {
+  Red = 'red',
+  Green = 'green',
+  Blue = 'blue',
+}
+
+const colorDecoder = enum_(Color);
+
+colorDecoder.verify('red');    // ✓ Color.Red
+colorDecoder.verify('green');  // ✓ Color.Green
+colorDecoder.verify('yellow'); // ✗ Error: Must be one of "red", "green", "blue"
+```
+
+### Numeric Enums
+
+```typescript
+import { enum_ } from 'decoders';
+
+enum Status {
+  Pending = 0,
+  Active = 1,
+  Complete = 2,
+}
+
+const statusDecoder = enum_(Status);
+
+statusDecoder.verify(0);  // ✓ Status.Pending
+statusDecoder.verify(1);  // ✓ Status.Active
+statusDecoder.verify(3);  // ✗ Error: Must be one of 0, 1, 2
+```
+
+### Const Enums
+
+```typescript
+import { enum_ } from 'decoders';
+
+const enum Direction {
+  North = 'N',
+  South = 'S',
+  East = 'E',
+  West = 'W',
+}
+
+const directionDecoder = enum_(Direction);
+
+directionDecoder.verify('N');  // ✓ Direction.North
+directionDecoder.verify('X');  // ✗ Error
+```
+
+## Type Inference
+
+The decoder correctly infers the enum type:
+
+```typescript
+import { enum_, type DecoderType } from 'decoders';
+
+enum Priority {
+  Low = 'low',
+  Medium = 'medium',
+  High = 'high',
+}
+
+const priorityDecoder = enum_(Priority);
+
+type PriorityType = DecoderType<typeof priorityDecoder>;
+// type PriorityType = Priority.Low | Priority.Medium | Priority.High
+// which is equivalent to: 'low' | 'medium' | 'high'
+
+const priority = priorityDecoder.verify('high');
+// priority: Priority
+```
+
+## Mixed Enums
+
+For enums with both string and numeric values:
+
+```typescript
+import { enum_ } from 'decoders';
+
+enum Mixed {
+  Zero = 0,
+  One = 1,
+  Default = 'default',
+  Auto = 'auto',
+}
+
+const mixedDecoder = enum_(Mixed);
+
+mixedDecoder.verify(0);         // ✓ Mixed.Zero
+mixedDecoder.verify('default'); // ✓ Mixed.Default
+mixedDecoder.verify(2);         // ✗ Error
+mixedDecoder.verify('other');   // ✗ Error
+```
+
+## With Objects
+
+Enums work well in object decoders:
+
+```typescript
+import { enum_, object, string, number } from 'decoders';
+
+enum Role {
+  Admin = 'admin',
+  User = 'user',
+  Guest = 'guest',
+}
+
+enum Plan {
+  Free = 0,
+  Pro = 1,
+  Enterprise = 2,
+}
+
+const userDecoder = object({
+  name: string,
+  role: enum_(Role),
+  plan: enum_(Plan),
+});
+
+const user = userDecoder.verify({
+  name: 'Alice',
+  role: 'admin',
+  plan: 1,
+});
+// user.role is Role
+// user.plan is Plan
+```
+
+## Error Messages
+
+The decoder provides clear error messages:
+
+```typescript
+import { enum_ } from 'decoders';
+
+enum Status {
+  Draft = 'draft',
+  Published = 'published',
+}
+
+const decoder = enum_(Status);
+
+decoder.verify('archived');
+// Error: Must be one of "draft", "published"
+```
+
+## vs oneOf()
+
+For enum values, prefer `enum_()` over `oneOf()`:
+
+```typescript
+import { enum_, oneOf } from 'decoders';
+
+enum Color { Red = 'red', Green = 'green', Blue = 'blue' }
+
+// ✓ Preferred: enum_() handles enums correctly
+const decoder1 = enum_(Color);
+
+// ✗ Works but less clear:
+const decoder2 = oneOf(['red', 'green', 'blue'] as const);
+
+// enum_() correctly handles:
+// - Numeric enums
+// - Reverse mapping in numeric enums
+// - Mixed enums
+```
+
+## Implementation Details
+
+The `enum_()` function handles TypeScript's enum quirks:
+
+- **String enums**: Direct value matching
+- **Numeric enums**: Filters out reverse mappings (`0 → 'Zero'` entries)
+- **Mixed enums**: Combines both strategies
+
+```typescript
+enum Example {
+  Zero = 0,
+  One = 1,
+}
+// Compiles to: { Zero: 0, One: 1, 0: 'Zero', 1: 'One' }
+// enum_() correctly extracts: [0, 1]
+```
+
+## Real-World Example
+
+```typescript
+import { enum_, object, string, number, optional } from 'decoders';
+
+enum OrderStatus {
+  Pending = 'pending',
+  Processing = 'processing',
+  Shipped = 'shipped',
+  Delivered = 'delivered',
+  Cancelled = 'cancelled',
+}
+
+enum PaymentMethod {
+  Card = 0,
+  PayPal = 1,
+  BankTransfer = 2,
+}
+
+const orderDecoder = object({
+  id: string,
+  status: enum_(OrderStatus),
+  payment: enum_(PaymentMethod),
+  total: number,
+  notes: optional(string),
+});
+
+// Validate API response
+const order = orderDecoder.verify({
+  id: 'ORD-123',
+  status: 'processing',
+  payment: 0,
+  total: 99.99,
+});
+
+// order.status is OrderStatus.Processing
+// order.payment is PaymentMethod.Card
+```
+
+## Related
+
+- [oneOf()](/api/unions/oneOf) - For literal value unions without enums
+- [constant()](/api/utilities/constant) - For single constant values
+- [either()](/api/unions/either) - For combining different decoder types

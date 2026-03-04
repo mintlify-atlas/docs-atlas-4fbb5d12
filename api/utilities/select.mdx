@@ -1,0 +1,242 @@
+---
+title: select
+description: Dynamically choose a decoder based on input data
+---
+
+The `select()` function allows you to dynamically choose which decoder to use based on the input data. It's a low-level composition primitive for advanced use cases.
+
+## Signature
+
+```typescript
+function select<T, D extends Decoder<unknown>>(
+  scout: Decoder<T>,
+  selectFn: (result: T) => D
+): Decoder<DecoderType<D>>
+```
+
+## How It Works
+
+1. The `scout` decoder runs first to decode a value
+2. If successful, `selectFn` receives the decoded value and returns a decoder
+3. That returned decoder is applied to the **original input**
+
+<Note>
+The `selectFn` receives the **decoded result** from the scout, but the decoder it returns will be applied to the **original blob**, not the decoded value.
+</Note>
+
+## Basic Usage
+
+```typescript
+import { select, string, number, object } from 'decoders';
+
+// Scout to determine the type
+const typeScout = object({ type: string });
+
+// Select decoder based on type field
+const decoder = select(typeScout, (result) => {
+  if (result.type === 'user') {
+    return object({
+      type: constant('user'),
+      name: string,
+      email: string,
+    });
+  } else {
+    return object({
+      type: constant('admin'),
+      name: string,
+      role: string,
+    });
+  }
+});
+
+decoder.verify({ type: 'user', name: 'Alice', email: 'alice@example.com' });
+// ✓ { type: 'user', name: 'Alice', email: 'alice@example.com' }
+
+decoder.verify({ type: 'admin', name: 'Bob', role: 'superadmin' });
+// ✓ { type: 'admin', name: 'Bob', role: 'superadmin' }
+```
+
+## When to Use select()
+
+Use `select()` for advanced scenarios where:
+
+- You need to inspect data before choosing a decoder
+- The decoder choice depends on computed values
+- You're implementing custom dispatch logic
+
+For most discriminated unions, use `taggedUnion()` instead, which is simpler and more efficient.
+
+## vs taggedUnion()
+
+```typescript
+import { select, taggedUnion, object, string } from 'decoders';
+
+// ✓ Preferred: Use taggedUnion() for simple discriminated unions
+const decoder1 = taggedUnion('type', {
+  user: object({ type: constant('user'), name: string }),
+  admin: object({ type: constant('admin'), name: string }),
+});
+
+// Use select() only when you need custom logic
+const decoder2 = select(object({ type: string }), (result) => {
+  // Complex logic to choose decoder
+  const decoderKey = computeKey(result.type);
+  return decoderMap[decoderKey];
+});
+```
+
+## Advanced Example: Version-Based Decoding
+
+```typescript
+import { select, object, string, number, optional } from 'decoders';
+
+const versionScout = object({ version: number });
+
+const documentDecoder = select(versionScout, (result) => {
+  if (result.version === 1) {
+    return object({
+      version: constant(1),
+      title: string,
+      body: string,
+    });
+  } else if (result.version === 2) {
+    return object({
+      version: constant(2),
+      title: string,
+      body: string,
+      author: string,
+    });
+  } else {
+    return object({
+      version: constant(3),
+      title: string,
+      body: string,
+      author: string,
+      tags: array(string),
+    });
+  }
+});
+
+documentDecoder.verify({
+  version: 2,
+  title: 'Doc',
+  body: 'Content',
+  author: 'Alice',
+});
+```
+
+## Computed Dispatch
+
+```typescript
+import { select, object, string } from 'decoders';
+
+const typeScout = object({ format: string });
+
+const dataDecoder = select(typeScout, (result) => {
+  // Compute which decoder to use
+  const format = result.format.toUpperCase();
+  
+  if (format.startsWith('JSON')) {
+    return jsonDecoder;
+  } else if (format.startsWith('XML')) {
+    return xmlDecoder;
+  } else {
+    return rawDecoder;
+  }
+});
+```
+
+## Error Handling
+
+If the scout decoder fails, the entire decoder fails:
+
+```typescript
+import { select, object, string } from 'decoders';
+
+const decoder = select(
+  object({ type: string }),
+  (result) => someDecoder,
+);
+
+decoder.verify({ noType: 'value' });
+// ✗ Error: Missing key: "type"
+// The selectFn is never called
+```
+
+If the selected decoder fails, that error is returned:
+
+```typescript
+import { select, object, string, number } from 'decoders';
+
+const decoder = select(
+  object({ type: string }),
+  (result) => object({ type: string, age: number }),
+);
+
+decoder.verify({ type: 'user' });
+// ✗ Error: Missing key: "age"
+```
+
+## Important: Scout vs Final Decoder
+
+The scout decoder sees the original input, and the final decoder **also** sees the original input:
+
+```typescript
+import { select, string } from 'decoders';
+
+const decoder = select(
+  string.transform(s => s.toUpperCase()),  // scout transforms
+  (upper) => {
+    console.log('Scout result:', upper);    // 'HELLO'
+    return string;  // But this runs on original input!
+  }
+);
+
+decoder.verify('hello');
+// Scout result: 'HELLO'
+// Result: 'hello' (not 'HELLO'!)
+```
+
+This is by design - it allows you to inspect data without modifying it before final decoding.
+
+## Performance
+
+`select()` runs two decoders:
+1. The scout decoder
+2. The selected decoder
+
+For simple discriminated unions, `taggedUnion()` is more efficient as it only decodes once.
+
+## Real-World Example: Polymorphic API Responses
+
+```typescript
+import { select, object, string, number, array, optional } from 'decoders';
+
+const typeScout = object({ 
+  entity_type: string,
+  version: number,
+});
+
+const entityDecoder = select(typeScout, (result) => {
+  const { entity_type, version } = result;
+  
+  // Choose decoder based on both type and version
+  const key = `${entity_type}-v${version}`;
+  
+  const decoders = {
+    'user-v1': userV1Decoder,
+    'user-v2': userV2Decoder,
+    'org-v1': orgV1Decoder,
+    'org-v2': orgV2Decoder,
+  };
+  
+  return decoders[key] || unknownEntityDecoder;
+});
+```
+
+## Related
+
+- [taggedUnion()](/api/unions/tagged-union) - Simpler alternative for discriminated unions
+- [either()](/api/unions/either) - Try multiple decoders in order
+- [lazy()](/api/utilities/lazy) - For recursive structures
+- [.pipe()](/api/decoder-class#pipe) - For sequential decoder chaining

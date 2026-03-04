@@ -122,6 +122,7 @@
               "api/unions/nullish",
               "api/unions/either",
               "api/unions/oneOf",
+              "api/unions/enum",
               "api/unions/tagged-union"
             ]
           },
@@ -134,6 +135,12 @@
             ]
           },
           {
+            "group": "JSON",
+            "pages": [
+              "api/json/json"
+            ]
+          },
+          {
             "group": "Utilities",
             "pages": [
               "api/utilities/constant",
@@ -141,6 +148,7 @@
               "api/utilities/unknown",
               "api/utilities/lazy",
               "api/utilities/sized",
+              "api/utilities/select",
               "api/utilities/instanceof"
             ]
           }

@@ -1,0 +1,172 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Decoders",
+  "projectDescription": "Elegant validation library for type-safe input data for TypeScript",
+  "theme": "palm",
+  "primaryColor": "#3B82F6",
+  "lightColor": null,
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/how-decoders-work",
+              "concepts/type-inference",
+              "concepts/error-handling",
+              "concepts/composing-decoders"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/basic-decoders",
+              "guides/object-validation",
+              "guides/array-validation",
+              "guides/custom-decoders",
+              "guides/transformations",
+              "guides/refinements"
+            ]
+          },
+          {
+            "group": "Migration",
+            "pages": [
+              "migration/migrating-to-v2"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core",
+            "pages": [
+              "api/decoder-class",
+              "api/define",
+              "api/result-types"
+            ]
+          },
+          {
+            "group": "Primitives",
+            "pages": [
+              "api/primitives/string",
+              "api/primitives/number",
+              "api/primitives/boolean",
+              "api/primitives/date",
+              "api/primitives/bigint"
+            ]
+          },
+          {
+            "group": "Objects & Arrays",
+            "pages": [
+              "api/objects/object",
+              "api/objects/exact",
+              "api/objects/inexact",
+              "api/arrays/array",
+              "api/arrays/tuple",
+              "api/arrays/poja"
+            ]
+          },
+          {
+            "group": "Strings",
+            "pages": [
+              "api/strings/email",
+              "api/strings/url",
+              "api/strings/uuid",
+              "api/strings/identifier",
+              "api/strings/regex"
+            ]
+          },
+          {
+            "group": "Numbers",
+            "pages": [
+              "api/numbers/integer",
+              "api/numbers/positive",
+              "api/numbers/numeric",
+              "api/numbers/ranges"
+            ]
+          },
+          {
+            "group": "Unions & Optionals",
+            "pages": [
+              "api/unions/optional",
+              "api/unions/nullable",
+              "api/unions/nullish",
+              "api/unions/either",
+              "api/unions/oneOf",
+              "api/unions/tagged-union"
+            ]
+          },
+          {
+            "group": "Collections",
+            "pages": [
+              "api/collections/record",
+              "api/collections/mapping",
+              "api/collections/set"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "api/utilities/constant",
+              "api/utilities/always",
+              "api/utilities/unknown",
+              "api/utilities/lazy",
+              "api/utilities/sized",
+              "api/utilities/instanceof"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Type-safe validation with automatic TypeScript type inference",
+    "Composable decoder functions for complex validation logic",
+    "Comprehensive built-in decoders for primitives, objects, arrays, and more",
+    "Transform and refine methods for custom validation",
+    "Excellent error messages with detailed annotations",
+    "Zero dependencies and tree-shakeable",
+    "Support for browser, Node.js, Bun, and Cloudflare Workers"
+  ],
+  "publicApiSurface": [
+    "string",
+    "number",
+    "boolean",
+    "date",
+    "object",
+    "array",
+    "optional",
+    "nullable",
+    "nullish",
+    "either",
+    "oneOf",
+    "taggedUnion",
+    "email",
+    "url",
+    "httpsUrl",
+    "uuid",
+    "regex",
+    "record",
+    "tuple",
+    "constant",
+    "always",
+    "unknown",
+    "define",
+    "Decoder",
+    "DecoderType",
+    "DecodeResult"
+  ]
+}
